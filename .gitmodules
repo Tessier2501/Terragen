@@ -1,0 +1,6 @@
+[submodule "TranslationTracker.wiki"]
+	path = TranslationTracker.wiki
+	url = https://github.com/rwqfsfasxc100/TranslationTracker.wiki.git
+[submodule "IndustriesOfEnceladusRewriteCN"]
+	path = IndustriesOfEnceladusRewriteCN
+	url = https://github.com/Tessier2501/IndustriesOfEnceladusRewriteCN
