@@ -31,7 +31,8 @@ from gd_format import (
 )
 
 TOOLS_DIR = Path(__file__).resolve().parent
-REPO_ROOT = TOOLS_DIR.parent
+# Layout: repo_root/Script/para-translation, so the root is two levels up.
+REPO_ROOT = TOOLS_DIR.parent.parent
 DEFAULT_GD = (
     REPO_ROOT
     / "IndustriesOfEnceladusRewriteCN"
