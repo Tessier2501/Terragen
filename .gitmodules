@@ -4,6 +4,3 @@
 [submodule "TranslateBooksWithLLMs"]
 	path = TranslateBooksWithLLMs
 	url = https://github.com/hydropix/TranslateBooksWithLLMs
-[submodule "translate-book"]
-	path = translate-book
-	url = https://github.com/deusyu/translate-book
