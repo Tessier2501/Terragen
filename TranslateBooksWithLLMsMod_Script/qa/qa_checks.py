@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""确定性 QA 检查模块（不调用 LLM，成本约为 0）。
+"""确定性 QA 检查模块 (不调用 LLM, 成本约为 0).
 
-对"翻译单元"列表（source chunk -> target chunk）做机械检查，输出逐 chunk
-报告与汇总。检查项：
-  1. number       数字一致性（源文数字在译文中应保留）
-  2. glossary     锁定术语合规（源文出现锁定词时，译文应含规范译名或声明别名）
-  3. coverage     实体覆盖（glossary 中的源实体在译文中应能找到痕迹，警告级）
-  4. untranslated 未译英文检测（ASCII 单词占比超阈值，排除允许列表）
-  5. length       长度异常（译文/源文词数比超出区间）
+对"翻译单元"列表 (source chunk -> target chunk) 做机械检查, 输出逐 chunk
+报告与汇总. 检查项:
+  1. number       数字一致性 (源文数字在译文中应保留)
+  2. glossary     锁定术语合规 (源文出现锁定词时, 译文应含规范译名或声明别名)
+  3. coverage     实体覆盖 (glossary 中的源实体在译文中应能找到痕迹, 警告级)
+  4. untranslated 未译英文检测 (ASCII 单词占比超阈值, 排除允许列表)
+  5. length       长度异常 (译文/源文词数比超出区间)
   6. punctuation  引号/括号配对与数量一致性
 
 用法:
   python qa_checks.py --translations units.json --glossary glossary.json [--out report.json]
 
-输入格式（翻译单元）:
+输入格式 (翻译单元):
   [{"id": 0, "source": "...", "target": "..."}, ...]
 
 glossary 兼容 TranslateBooksWithLLMs 的 JSON 格式:
   {"terms": [{"source": "...", "target": "...", "category": "...", "gender": "...", "lock_level": "confirmed"}]}
-  或裸列表 [{"source": ..., "target": ...}]; 无 lock_level 字段时视为全部锁定。
+  或裸列表 [{"source": ..., "target": ...}]; 无 lock_level 字段时视为全部锁定.
 """
 from __future__ import annotations
 
@@ -48,14 +48,14 @@ def is_cjk(char: str) -> bool:
 
 
 def count_words(text: str) -> int:
-    """词数估计: 连续 ASCII 字母/数字串记 1 词, 每个 CJK 字符记 1 词, 标点与空白忽略。"""
+    """词数估计: 连续 ASCII 字母/数字串记 1 词, 每个 CJK 字符记 1 词, 标点与空白忽略."""
     latin_words = len(re.findall(r"[A-Za-z0-9']+", text))
     cjk_chars = sum(1 for ch in text if is_cjk(ch))
     return latin_words + cjk_chars
 
 
 def extract_numbers(text: str) -> Dict[str, int]:
-    """提取数字并规范化, 返回 {规范数字: 出现次数}。"""
+    """提取数字并规范化, 返回 {规范数字: 出现次数}."""
     counts: Dict[str, int] = {}
     for m in _NUMBER_RE.finditer(text):
         raw = m.group(0)
@@ -140,7 +140,7 @@ def check_glossary_compliance(source: str, target: str, glossary: Optional[Dict[
 
 def check_entity_coverage(source: str, target: str, glossary: Optional[Dict[str, Any]]) -> CheckResult:
     """实体覆盖(警告级): 源文出现的锁定实体, 译文应有任何痕迹
-    (规范译名 / 声明别名 / 原文形式均可), 否则提示可能消失。"""
+    (规范译名 / 声明别名 / 原文形式均可), 否则提示可能消失."""
     issues: List[str] = []
     for entry in _glossary_locked_entries(glossary):
         term = (entry.get("source") or "").strip()

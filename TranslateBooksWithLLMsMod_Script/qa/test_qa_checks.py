@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""qa_checks 模块的单元测试 (纯标准库 unittest, 无需安装依赖)。
+"""qa_checks 模块的单元测试 (纯标准库 unittest, 无需安装依赖).
 
 运行方式: python3 -m unittest test_qa_checks -v   (在 qa/ 目录下)
 """
