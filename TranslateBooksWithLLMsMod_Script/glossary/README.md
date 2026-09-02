@@ -23,10 +23,10 @@
 
 ## 流程（单书 MVP）
 
-1. 提取：全书/分章样本跑实体提取（CLI `--auto-glossary` 为一次性临时提取；正式流程待 Web/自定义脚本定案）。
-2. 去重合并：同实体多表面形式合并为一个 entry，填 `aliases`。
+1. 提取（自动，阶段 1）：默认 CLI 先自动 NER 生成草稿 `<输入名>-glossary.draft.json` 并停止，等待人工核查（见 PLAN"默认两阶段流程"）。
+2. 去重合并：核查时把同实体多表面形式合并为一个 entry，填 `aliases`。
 3. 人工锁定：关键人名/地名/术语置 `lock_level: confirmed` 并审阅 `target`。
-4. 注入：`python translate.py --glossary book_glossary.json ...`。
+4. 注入：`python translate.py ... --glossary <核查后的草稿>`（阶段 2）。
 5. QA：翻译完成后跑 `python qa/qa_checks.py --translations units.json --glossary book_glossary.json`（在 `TranslateBooksWithLLMsMod_Script/` 下）。
 
 ## 系列扩展（后置）
