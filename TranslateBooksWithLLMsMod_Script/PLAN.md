@@ -1,6 +1,6 @@
 # Terragen 整书翻译 Pipeline 计划
 
-> 状态：核对与试运行完成（run1–4 见 `Script/ab/logs/`）；修复批 + P3 已实现并推送 fork `9f9b35d`；glossary 默认开启；下一步整书 P3 版对比与单书 MVP。
+> 状态：核对与试运行完成（A/B 试运行原始数据已清理）；修复批 + P3 已实现并推送 fork `9f9b35d`；默认两阶段 glossary 流程（fork `e44d1d9`）；下一步整书 P3 版对比与单书 MVP。
 
 ## 目标
 
@@ -10,10 +10,11 @@
 
 ## 仓库布局
 
-- Terragen 根目录只放克隆的仓库（git 子模组）：
+- Terragen 根目录布局：git 子模组（克隆的仓库）+ 两个对应的工作目录（`*_Script`）：
   - `TranslateBooksWithLLMsMod/`（v1.5.9）：**主基座**——自包含应用，多 provider、checkpoint、glossary、EPUB 处理齐备 (如比较麻烦可回退到仅txt)，在此基础上做本地改动。
   - `translate-book/`：**已移除**（子模组已删）；其设计思想（manifest/run_state 状态追踪、手编 glossary schema）已记录在核对报告中。
-- `Script/`：所有工作文件的交付位置（本计划、para-translation 工具 (不属于本项目)、后续调研与实现产物）。
+  - `TranslateBooksWithLLMsMod_Script/`：本计划与本书翻译项目交付物（QA、glossary 模板、报告、工具）的存放位置。
+  - `IndustriesOfEnceladusRewriteCN_Script/`：para-translation 工具（不属于本书翻译项目）的存放位置。
 
 ## 已定结论
 
@@ -76,11 +77,11 @@ EPUB → parser → chunking → glossary discovery → glossary DB → translat
 
 ## 下一步行动
 
-1. ✅ 代码级核对 TranslateBooksWithLLMs → `Script/review-TBWLLM-v1.5.9.md`。
-2. ✅ **P1 补丁 + A/B 类试运行完成**：P1 推 fork（`a656e39`）；整书/样本试运行 run1–4 记录于 `Script/ab/logs/`（成本 $0.054–0.066/本，命中率 34.8–53.8%）。
+1. ✅ 代码级核对 TranslateBooksWithLLMs → `review-TBWLLM-v1.5.9.md`。
+2. ✅ **P1 补丁 + A/B 类试运行完成**：P1 推 fork（`a656e39`）；试运行成本 $0.054–0.066/本、命中率 34.8–53.8%（原始日志已清理，数据要点见"潜在改进"节）。
 3. ✅ **P2 补丁**（CLI resume 命令）已完成并推送至 fork（`a656e39`）；补丁由子模组 git 历史管理（原 `Script/patches/` 备份已删除）。
 4. 单书 MVP：txt 输入，选一本 10–20 章的真实小说跑通最小闭环，记录每章成本与质量。
-5. 确定性 QA 模块（Script/ 侧）。
+5. 确定性 QA 模块（`qa/` 侧）。
 6. 验收：抽 3 章人工精读。
 
 ## 潜在改进 / 修复（试运行 + 外部 review 对照）

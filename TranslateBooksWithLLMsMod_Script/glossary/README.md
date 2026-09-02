@@ -19,7 +19,7 @@
 ## 与 TranslateBooksWithLLMs 的兼容性
 
 - `--glossary <file>` 加载器只读取 `source / target / category / gender`，其余字段忽略，因此本模板可直接作为 `--glossary` 输入。
-- QA 模块（`Script/qa/qa_checks.py`）读取 `lock_level == "confirmed"` 的条目做术语合规与覆盖检查。
+- QA 模块（`qa/qa_checks.py`，同处 `TranslateBooksWithLLMsMod_Script/`）读取 `lock_level == "confirmed"` 的条目做术语合规与覆盖检查。
 
 ## 流程（单书 MVP）
 
@@ -27,7 +27,7 @@
 2. 去重合并：同实体多表面形式合并为一个 entry，填 `aliases`。
 3. 人工锁定：关键人名/地名/术语置 `lock_level: confirmed` 并审阅 `target`。
 4. 注入：`python translate.py --glossary book_glossary.json ...`。
-5. QA：翻译完成后跑 `python Script/qa/qa_checks.py --translations units.json --glossary book_glossary.json`。
+5. QA：翻译完成后跑 `python qa/qa_checks.py --translations units.json --glossary book_glossary.json`（在 `TranslateBooksWithLLMsMod_Script/` 下）。
 
 ## 系列扩展（后置）
 
