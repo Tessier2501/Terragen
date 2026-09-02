@@ -1,6 +1,6 @@
 # TranslateBooksWithLLMs v1.5.9 代码级核对报告
 
-> 核对对象：`TranslateBooksWithLLMs/`（git 子模组，HEAD=`031cb27`，tag `v1.5.9`，remote 指向 upstream hydropix/TranslateBooksWithLLMs）
+> 核对对象：`TranslateBooksWithLLMsMod/`（git 子模组，HEAD=`031cb27`，tag `v1.5.9`，remote 指向 upstream hydropix/TranslateBooksWithLLMs）
 > 核对方式：全程只读，未修改任何文件、未运行程序。四个检查面并行完成：glossary/采样、prompt/LLM 层、checkpoint/配置、结构/同步风险。
 > 依据：各节结论均带 file:line 证据（文件路径相对仓库根）。
 

@@ -11,7 +11,7 @@
 ## 仓库布局
 
 - Terragen 根目录只放克隆的仓库（git 子模组）：
-  - `TranslateBooksWithLLMs/`（v1.5.9）：**主基座**——自包含应用，多 provider、checkpoint、glossary、EPUB 处理齐备 (如比较麻烦可回退到仅txt)，在此基础上做本地改动。
+  - `TranslateBooksWithLLMsMod/`（v1.5.9）：**主基座**——自包含应用，多 provider、checkpoint、glossary、EPUB 处理齐备 (如比较麻烦可回退到仅txt)，在此基础上做本地改动。
   - `translate-book/`：**已移除**（子模组已删）；其设计思想（manifest/run_state 状态追踪、手编 glossary schema）已记录在核对报告中。
 - `Script/`：所有工作文件的交付位置（本计划、para-translation 工具 (不属于本项目)、后续调研与实现产物）。
 
