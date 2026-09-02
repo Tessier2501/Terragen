@@ -57,6 +57,7 @@
 - 系列：跨书术语库（单文件 JSON，大了迁 SQLite）；新书用已知实体做 seed → 只增量提取新实体 → merge（新别名并入已有实体）→ 冲突检测（同一形式跨书指代不同实体时带当前书上下文或人工裁决）→ 跨书 QA 检查锁定术语一致性。
 - 系列的增量提取是跨书成本优化的关键：每本书只找新实体，不重复全书提取。
 - glossary 默认开启：CLI 默认执行 auto-glossary（提取失败自动重试 1 次）；`--no-auto-glossary` 可关闭；`--glossary` 提供人工锁定文件时自动跳过 auto。
+- **默认两阶段流程（fork `e44d1d9`）**：CLI 默认先建 glossary 草稿（`<输入名>-glossary.draft.json`）→ **停止等待人工核查**（修正译名、删垃圾行）→ 用 `--glossary <草稿>` 复跑进入翻译。`--auto-glossary` 保留单次模式，`--no-auto-glossary` 完全跳过。
 
 ### 5. 架构
 
