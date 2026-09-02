@@ -1,6 +1,6 @@
 [submodule "IndustriesOfEnceladusRewriteCN"]
 	path = IndustriesOfEnceladusRewriteCN
 	url = https://github.com/Tessier2501/IndustriesOfEnceladusRewriteCN
-[submodule "TranslateBooksWithLLMs"]
-	path = TranslateBooksWithLLMs
+[submodule "TranslateBooksWithLLMsMod"]
+	path = TranslateBooksWithLLMsMod
 	url = https://github.com/Tessier2501/TranslateBooksWithLLMsMod.git
