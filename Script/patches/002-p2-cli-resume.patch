@@ -1,0 +1,240 @@
+diff --git a/translate.py b/translate.py
+index 2cd039c..6073c84 100644
+--- a/translate.py
++++ b/translate.py
+@@ -130,12 +130,14 @@ def _apply_cli_auto_prep(args, prompt_options, logger) -> None:
+ 
+ if __name__ == "__main__":
+     parser = argparse.ArgumentParser(
+-        description="Translate a text, EPUB or SRT file using an LLM.",
++        description="Translate a text, EPUB or SRT file using an LLM, or resume an interrupted translation with --resume.",
+         epilog="Tip: any --*_api_key flag also accepts comma-separated keys "
+                "(e.g. --gemini_api_key key1,key2,key3) for automatic rotation "
+                "on HTTP 429 — useful to chain free-tier accounts.",
+     )
+-    parser.add_argument("-i", "--input", required=True, help="Path to the input file (text, EPUB, or SRT).")
++    parser.add_argument("-i", "--input", default=None,
++                        help="Path to the input file (text, EPUB, or SRT). "
++                             "Required unless --resume is used.")
+     parser.add_argument("-o", "--output", default=None, help="Path to the output file. If not specified, uses input filename with suffix.")
+     parser.add_argument("-sl", "--source_lang", default=DEFAULT_SOURCE_LANGUAGE, help=f"Source language (default: {DEFAULT_SOURCE_LANGUAGE}).")
+     parser.add_argument("-tl", "--target_lang", default=DEFAULT_TARGET_LANGUAGE, help=f"Target language (default: {DEFAULT_TARGET_LANGUAGE}).")
+@@ -151,6 +153,14 @@ if __name__ == "__main__":
+     parser.add_argument("--nim_api_key", default=NIM_API_KEY, help="NVIDIA NIM API key (required if using nim provider). Get your key at https://build.nvidia.com/")
+     parser.add_argument("--parallel", type=int, default=PARALLEL_TRANSLATIONS, metavar="N", help=f"Number of chunks translated concurrently (default: {PARALLEL_TRANSLATIONS}). Only cloud providers benefit; local providers (Ollama) are forced to 1. Values > 1 drop cross-chunk context chaining.")
+     parser.add_argument("--no-color", action="store_true", help="Disable colored output.")
++    parser.add_argument("--resume", metavar="TRANSLATION_ID", default=None,
++                        help="Resume an interrupted translation job (id printed in the log "
++                             "of the original run, format 'cli_xxxxxxxx') instead of starting "
++                             "a new one. Only chunks that are still unfinished are translated. "
++                             "Input/output paths, languages, model, provider and prompt options "
++                             "are restored from the job checkpoint in data/jobs.db; -o/--output, "
++                             "-m/--model, --provider, --api_endpoint and API key flags may "
++                             "override the stored values.")
+ 
+     # Prompt options (optional system prompt instructions)
+     prompt_group = parser.add_argument_group('Prompt Options', 'Optional instructions to include in the translation prompt')
+@@ -178,6 +188,74 @@ if __name__ == "__main__":
+ 
+     args = parser.parse_args()
+ 
++    # === Resume mode ===
++    # `python translate.py --resume <translation_id>` continues an interrupted
++    # CLI translation. Job data lives in data/jobs.db: the checkpoint rows
++    # record exactly which chunks completed, so the same pipeline that wrote
++    # them (GenericTranslator for TXT/SRT, the partial-state machinery for
++    # EPUB/DOCX) reloads them by translation_id and retranslates only what is
++    # still pending - completed work is never re-run. Parameters of the
++    # original run (input/output paths, languages, model, provider, prompt
++    # options) are restored from the persisted job config; -o/--output,
++    # -m/--model and --provider explicitly given on the command line override
++    # the stored values.
++    resume_checkpoint = None
++    resume_from_index = 0
++    resume_job_config = {}
++    if args.resume:
++        if args.input:
++            parser.error("-i/--input cannot be combined with --resume: the input "
++                         "file is restored from the job checkpoint")
++        if args.refine_only:
++            parser.error("--refine-only cannot be combined with --resume: the "
++                         "refinement pass has no checkpoint of its own")
++        if args.text_cleanup or args.refine or args.glossary \
++                or args.auto_glossary or args.auto_style:
++            parser.error("--text-cleanup/--refine/--glossary/--auto-glossary/"
++                         "--auto-style cannot be combined with --resume: the "
++                         "job's original prompt options are restored from the "
++                         "checkpoint (start a new translation to change them)")
++
++        resume_checkpoint = CheckpointManager().load_checkpoint(args.resume)
++        if resume_checkpoint is None:
++            parser.error(f"No checkpoint found for translation id '{args.resume}'. "
++                         "Run a translation first (job data lives in data/jobs.db) "
++                         "or use -i to start a new translation.")
++        job = resume_checkpoint['job']
++        if job.get('status') == 'completed':
++            parser.error(f"Translation job '{args.resume}' is already completed. "
++                         "Delete its checkpoint to translate it again from scratch.")
++        resume_job_config = job.get('config') or {}
++
++        # Restore the job parameters from the checkpoint. The preserved input
++        # is preferred because the original upload path may no longer exist.
++        input_path = (resume_job_config.get('preserved_input_path')
++                      or resume_job_config.get('input_file_path'))
++        if not input_path or not os.path.exists(input_path):
++            parser.error(f"Checkpoint input file is missing: {input_path or '(none)'}. "
++                         "The preserved upload may have been cleaned up; start a "
++                         "new translation with -i instead.")
++        args.input = input_path
++        if args.output is None:
++            args.output = resume_job_config.get('output_file_path')
++        if not args.output:
++            parser.error(f"Checkpoint for '{args.resume}' has no output_file_path.")
++        args.source_lang = resume_job_config.get('source_language') or args.source_lang
++        args.target_lang = resume_job_config.get('target_language') or args.target_lang
++        if args.model == DEFAULT_MODEL:
++            args.model = resume_job_config.get('model_name') or args.model
++        if args.provider == LLM_PROVIDER:
++            args.provider = resume_job_config.get('llm_provider') or args.provider
++        resume_from_index = resume_checkpoint.get('resume_from_index', 0)
++    elif not args.input:
++        parser.error("-i/--input is required (or use --resume <translation_id> "
++                     "to continue an interrupted job)")
++
++    # Unique id for this run, or the resumed job's id. Printed in the start
++    # log below so an interrupted run can later be continued with
++    # `python translate.py --resume <this id>`.
++    translation_id = args.resume or f"cli_{uuid.uuid4().hex[:8]}"
++
+     # Auto-select default model based on provider if not explicitly set
+     from src.config import NIM_MODEL, MISTRAL_MODEL, DEEPSEEK_MODEL, POE_MODEL, OPENROUTER_MODEL, GEMINI_MODEL, LITELLM_MODEL
+     if args.model == DEFAULT_MODEL:
+@@ -219,8 +297,11 @@ if __name__ == "__main__":
+         else:
+             args.output = f"{base} ({args.target_lang}){output_ext}"
+ 
+-    # Ensure output path is unique (add number suffix if file exists)
+-    args.output = get_unique_output_path(args.output)
++    # Ensure output path is unique (add number suffix if file exists). On a
++    # resume the checkpoint's own output file is the continuation target, so it
++    # is reused (overwritten with the completed result) instead of renamed.
++    if args.resume is None:
++        args.output = get_unique_output_path(args.output)
+ 
+     # Determine file type
+     if args.input.lower().endswith('.epub'):
+@@ -286,7 +367,10 @@ if __name__ == "__main__":
+             'input_file': args.input,
+             'output_file': args.output,
+             'api_endpoint': args.api_endpoint,
+-            'llm_provider': args.provider
++            'llm_provider': args.provider,
++            'translation_id': translation_id,
++            'mode': 'resume' if args.resume else 'translate',
++            'resume_from_chunk': resume_from_index if args.resume else None,
+         })
+ 
+     # Create legacy callback for backward compatibility
+@@ -299,42 +383,50 @@ if __name__ == "__main__":
+         if total > 0:
+             logger.update_progress(completed, total)
+ 
+-    # Build prompt_options from CLI arguments
++    # Build prompt_options from CLI arguments.
+     # Technical content protection is now always enabled.
+     # In refine-only mode the refinement pass is implicit, so we force the
+     # `refine` flag off to avoid double-counting in the progress tracker.
+-    prompt_options = {
+-        'preserve_technical_content': True,
+-        'text_cleanup': args.text_cleanup,
+-        'refine': args.refine and not args.refine_only,
+-    }
+-
+-    # Load glossary file (JSON or CSV) into prompt_options
+-    if args.glossary:
+-        try:
+-            from src.core.glossary.cli_loader import load_glossary_from_file
+-            glossary_terms, glossary_metadata = load_glossary_from_file(args.glossary)
+-            if glossary_terms:
+-                prompt_options['glossary_terms'] = glossary_terms
+-                if glossary_metadata:
+-                    prompt_options['glossary_term_metadata'] = glossary_metadata
+-                logger.info(f"Glossary loaded: {len(glossary_terms)} terms from {args.glossary}")
+-            else:
+-                logger.warning(f"Glossary file {args.glossary} contained no usable entries")
+-        except Exception as e:
+-            parser.error(f"Failed to load glossary {args.glossary}: {e}")
+-
+-    # Auto glossary / auto style: derive throwaway prompt_options from the
+-    # input document itself, with one extra LLM call per requested pass.
+-    _apply_cli_auto_prep(args, prompt_options, logger)
++    if resume_checkpoint is not None:
++        # Resume: reuse the prompt options (glossary snapshot, text cleanup,
++        # refine flag) persisted with the job, so the remaining chunks are
++        # translated under the exact instructions the completed ones used.
++        prompt_options = dict(resume_job_config.get('prompt_options') or {})
++    else:
++        prompt_options = {
++            'preserve_technical_content': True,
++            'text_cleanup': args.text_cleanup,
++            'refine': args.refine and not args.refine_only,
++        }
++
++        # Load glossary file (JSON or CSV) into prompt_options
++        if args.glossary:
++            try:
++                from src.core.glossary.cli_loader import load_glossary_from_file
++                glossary_terms, glossary_metadata = load_glossary_from_file(args.glossary)
++                if glossary_terms:
++                    prompt_options['glossary_terms'] = glossary_terms
++                    if glossary_metadata:
++                        prompt_options['glossary_term_metadata'] = glossary_metadata
++                    logger.info(f"Glossary loaded: {len(glossary_terms)} terms from {args.glossary}")
++                else:
++                    logger.warning(f"Glossary file {args.glossary} contained no usable entries")
++            except Exception as e:
++                parser.error(f"Failed to load glossary {args.glossary}: {e}")
++
++        # Auto glossary / auto style: derive throwaway prompt_options from the
++        # input document itself, with one extra LLM call per requested pass.
++        _apply_cli_auto_prep(args, prompt_options, logger)
+ 
+     start_time = time.time()
+     try:
+         # Create checkpoint manager for resume capability
+         checkpoint_manager = CheckpointManager()
+ 
+-        # Generate unique translation ID
+-        translation_id = f"cli_{uuid.uuid4().hex[:8]}"
++        if args.resume:
++            # The job is being worked on again; the pipeline decides what still
++            # needs translating. Mark it running so the stored status is honest.
++            checkpoint_manager.mark_running(translation_id)
+ 
+         if args.refine_only:
+             asyncio.run(refine_file(
+@@ -384,7 +476,14 @@ if __name__ == "__main__":
+                 poe_api_key=args.poe_api_key,
+                 nim_api_key=args.nim_api_key,
+                 prompt_options=prompt_options,
+-                parallel_workers=args.parallel
++                parallel_workers=args.parallel,
++                resume_from_index=resume_from_index,
++                # TXT/SRT chunking must match the original run or chunk_index
++                # bookkeeping drifts; the job config stores the value used then.
++                max_tokens_per_chunk=(
++                    resume_job_config.get('max_tokens_per_chunk')
++                    if resume_checkpoint is not None else None
++                ),
+             ))
+ 
+             logger.info("Translation Completed Successfully", LogType.TRANSLATION_END, {
+@@ -399,7 +498,7 @@ if __name__ == "__main__":
+             'model': args.model,
+             'source_lang': None if args.refine_only else args.source_lang,
+             'target_lang': args.target_lang,
+-            'mode': 'refine-only' if args.refine_only else 'translate',
++            'mode': 'resume' if args.resume else ('refine-only' if args.refine_only else 'translate'),
+         })
+ 
+         # TTS Generation (if enabled)

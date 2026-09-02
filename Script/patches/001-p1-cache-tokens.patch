@@ -1,0 +1,65 @@
+diff --git a/src/core/llm/base.py b/src/core/llm/base.py
+index 91df1c9..06bb87b 100644
+--- a/src/core/llm/base.py
++++ b/src/core/llm/base.py
+@@ -42,6 +42,8 @@ class LLMResponse:
+     content: str
+     prompt_tokens: int = 0  # Number of tokens in the prompt
+     completion_tokens: int = 0  # Number of tokens in the response
++    prompt_cache_hit_tokens: int = 0  # Input tokens served from provider prefix cache
++    prompt_cache_miss_tokens: int = 0  # Input tokens NOT served from provider prefix cache
+     context_used: int = 0  # Total context used (prompt + completion)
+     context_limit: int = 0  # Context limit that was set for this request
+     was_truncated: bool = False  # True if response was truncated due to context limit
+diff --git a/src/core/llm/providers/deepseek.py b/src/core/llm/providers/deepseek.py
+index b1649b0..fa2cefe 100644
+--- a/src/core/llm/providers/deepseek.py
++++ b/src/core/llm/providers/deepseek.py
+@@ -264,13 +264,18 @@ class DeepSeekProvider(LLMProvider):
+                 usage = result.get("usage", {})
+                 prompt_tokens = usage.get("prompt_tokens", 0)
+                 completion_tokens = usage.get("completion_tokens", 0)
++                prompt_cache_hit_tokens = usage.get("prompt_cache_hit_tokens", 0)
++                prompt_cache_miss_tokens = usage.get("prompt_cache_miss_tokens", 0)
+ 
+-                print(f"💬 DeepSeek: {prompt_tokens}+{completion_tokens} tokens")
++                print(f"💬 DeepSeek: {prompt_tokens}+{completion_tokens} tokens "
++                      f"(cache hit {prompt_cache_hit_tokens}, miss {prompt_cache_miss_tokens})")
+ 
+                 return LLMResponse(
+                     content=response_text,
+                     prompt_tokens=prompt_tokens,
+                     completion_tokens=completion_tokens,
++                    prompt_cache_hit_tokens=prompt_cache_hit_tokens,
++                    prompt_cache_miss_tokens=prompt_cache_miss_tokens,
+                     context_used=prompt_tokens + completion_tokens,
+                     context_limit=self._get_context_limit(),
+                     was_truncated=False
+diff --git a/src/core/llm/providers/openai.py b/src/core/llm/providers/openai.py
+index 55732c9..427ba97 100644
+--- a/src/core/llm/providers/openai.py
++++ b/src/core/llm/providers/openai.py
+@@ -136,17 +136,22 @@ class OpenAICompatibleProvider(LLMProvider):
+                 usage = response_json.get("usage", {})
+                 prompt_tokens = usage.get("prompt_tokens", 0)
+                 completion_tokens = usage.get("completion_tokens", 0)
++                prompt_cache_hit_tokens = usage.get("prompt_cache_hit_tokens", 0)
++                prompt_cache_miss_tokens = usage.get("prompt_cache_miss_tokens", 0)
+                 context_used = prompt_tokens + completion_tokens
+ 
+                 if self.log_callback and (prompt_tokens or completion_tokens):
+                     self.log_callback("token_usage",
+                         f"Tokens: prompt={prompt_tokens}, response={completion_tokens}, "
+-                        f"total={context_used}")
++                        f"total={context_used}, cache_hit={prompt_cache_hit_tokens}, "
++                        f"cache_miss={prompt_cache_miss_tokens}")
+ 
+                 return LLMResponse(
+                     content=response_text,
+                     prompt_tokens=prompt_tokens,
+                     completion_tokens=completion_tokens,
++                    prompt_cache_hit_tokens=prompt_cache_hit_tokens,
++                    prompt_cache_miss_tokens=prompt_cache_miss_tokens,
+                     context_used=context_used,
+                     context_limit=self.context_window,
+                     was_truncated=False  # OpenAI API doesn't provide truncation info

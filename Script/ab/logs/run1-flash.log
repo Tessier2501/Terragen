@@ -1,0 +1,454 @@
+TRANSLATION STARTED
+File Type: TEXT
+Languages: English → Chinese
+Model: deepseek-v4-flash
+[13:43:33]  Preparing TXT file for translation
+[13:44:11]  Found 139 translation units
+Input file preserved: data/uploads/cli_131a6bc8/With the Bentfin Boomer Boys on - Richard A. Lupoff.txt
+[13:44:11]  Translating unit 1/139 (chunk_0)
+💬 DeepSeek: 942+351 tokens (cache hit 0, miss 942)
+[13:44:17]  Unit 1/139 translated successfully
+[13:44:17]  Translating unit 2/139 (chunk_1)
+💬 DeepSeek: 1197+446 tokens (cache hit 0, miss 1197)
+[13:44:27]  Unit 2/139 translated successfully
+[13:44:27]  Translating unit 3/139 (chunk_2)
+💬 DeepSeek: 1175+472 tokens (cache hit 512, miss 663)
+[13:44:34]  Unit 3/139 translated successfully
+[13:44:34]  Translating unit 4/139 (chunk_3)
+💬 DeepSeek: 1171+478 tokens (cache hit 512, miss 659)
+[13:44:41]  Unit 4/139 translated successfully
+[13:44:41]  Translating unit 5/139 (chunk_4)
+💬 DeepSeek: 1194+433 tokens (cache hit 512, miss 682)
+[13:44:48]  Unit 5/139 translated successfully
+[13:44:48]  Translating unit 6/139 (chunk_5)
+💬 DeepSeek: 1143+402 tokens (cache hit 512, miss 631)
+[13:44:55]  Unit 6/139 translated successfully
+[13:44:55]  Translating unit 7/139 (chunk_6)
+💬 DeepSeek: 1174+475 tokens (cache hit 512, miss 662)
+[13:45:02]  Unit 7/139 translated successfully
+[13:45:02]  Translating unit 8/139 (chunk_7)
+💬 DeepSeek: 1077+315 tokens (cache hit 512, miss 565)
+[13:45:09]  Unit 8/139 translated successfully
+[13:45:09]  Translating unit 9/139 (chunk_8)
+💬 DeepSeek: 1160+458 tokens (cache hit 512, miss 648)
+[13:45:16]  Unit 9/139 translated successfully
+[13:45:16]  Translating unit 10/139 (chunk_9)
+💬 DeepSeek: 1133+411 tokens (cache hit 512, miss 621)
+[13:45:23]  Unit 10/139 translated successfully
+[13:45:23]  Translating unit 11/139 (chunk_10)
+💬 DeepSeek: 1097+355 tokens (cache hit 512, miss 585)
+[13:45:29]  Unit 11/139 translated successfully
+[13:45:29]  Translating unit 12/139 (chunk_11)
+💬 DeepSeek: 1162+456 tokens (cache hit 512, miss 650)
+[13:45:37]  Unit 12/139 translated successfully
+[13:45:37]  Translating unit 13/139 (chunk_12)
+💬 DeepSeek: 1090+420 tokens (cache hit 512, miss 578)
+[13:45:44]  Unit 13/139 translated successfully
+[13:45:44]  Translating unit 14/139 (chunk_13)
+💬 DeepSeek: 1151+426 tokens (cache hit 512, miss 639)
+[13:45:52]  Unit 14/139 translated successfully
+[13:45:52]  Translating unit 15/139 (chunk_14)
+💬 DeepSeek: 1175+414 tokens (cache hit 512, miss 663)
+[13:45:59]  Unit 15/139 translated successfully
+[13:45:59]  Translating unit 16/139 (chunk_15)
+💬 DeepSeek: 1154+387 tokens (cache hit 512, miss 642)
+[13:46:06]  Unit 16/139 translated successfully
+[13:46:06]  Translating unit 17/139 (chunk_16)
+💬 DeepSeek: 1122+346 tokens (cache hit 512, miss 610)
+[13:46:12]  Unit 17/139 translated successfully
+[13:46:12]  Translating unit 18/139 (chunk_17)
+💬 DeepSeek: 1097+325 tokens (cache hit 512, miss 585)
+[13:46:16]  Unit 18/139 translated successfully
+[13:46:16]  Translating unit 19/139 (chunk_18)
+💬 DeepSeek: 1182+413 tokens (cache hit 512, miss 670)
+[13:46:22]  Unit 19/139 translated successfully
+[13:46:22]  Translating unit 20/139 (chunk_19)
+💬 DeepSeek: 1133+356 tokens (cache hit 512, miss 621)
+[13:46:27]  Unit 20/139 translated successfully
+[13:46:27]  Translating unit 21/139 (chunk_20)
+💬 DeepSeek: 1182+408 tokens (cache hit 512, miss 670)
+[13:46:34]  Unit 21/139 translated successfully
+[13:46:34]  Translating unit 22/139 (chunk_21)
+💬 DeepSeek: 1178+437 tokens (cache hit 512, miss 666)
+[13:46:39]  Unit 22/139 translated successfully
+[13:46:39]  Translating unit 23/139 (chunk_22)
+💬 DeepSeek: 1152+381 tokens (cache hit 512, miss 640)
+[13:46:45]  Unit 23/139 translated successfully
+[13:46:45]  Translating unit 24/139 (chunk_23)
+💬 DeepSeek: 1094+329 tokens (cache hit 512, miss 582)
+[13:46:49]  Unit 24/139 translated successfully
+[13:46:49]  Translating unit 25/139 (chunk_24)
+💬 DeepSeek: 1164+382 tokens (cache hit 512, miss 652)
+[13:46:55]  Unit 25/139 translated successfully
+[13:46:55]  Translating unit 26/139 (chunk_25)
+💬 DeepSeek: 1147+345 tokens (cache hit 512, miss 635)
+[13:47:00]  Unit 26/139 translated successfully
+[13:47:00]  Translating unit 27/139 (chunk_26)
+💬 DeepSeek: 1033+292 tokens (cache hit 512, miss 521)
+[13:47:04]  Unit 27/139 translated successfully
+[13:47:04]  Translating unit 28/139 (chunk_27)
+💬 DeepSeek: 1195+445 tokens (cache hit 512, miss 683)
+[13:47:09]  Unit 28/139 translated successfully
+[13:47:09]  Translating unit 29/139 (chunk_28)
+💬 DeepSeek: 1086+294 tokens (cache hit 512, miss 574)
+[13:47:14]  Unit 29/139 translated successfully
+[13:47:14]  Translating unit 30/139 (chunk_29)
+💬 DeepSeek: 1180+405 tokens (cache hit 512, miss 668)
+[13:47:20]  ⚠️ WARNING: Failed to extract translation (tags not found or malformed)
+[13:47:20]  Response preview (first 300 chars): <TRANSLATION>
+陈-察-祖温在NGC 7007下方缓缓漂移，向上感知着视觉。她上方可见的那颗星是绿色的，在黄色的天空中强烈地燃烧着。这颗陈-察-祖温已经见过许多次了。云很多，是的；恩尤-阿特兰奇这片丰饶之海也未能豁免于这条法则。上帝已裁定，沐浴在强烈阳光下的水，应当蒸发并向着太阳升腾。恩尤-阿特兰奇的海水谦卑地遵从。它们蒸发，它们上升，它们重新凝结，聚积成云。云在恩尤-阿特兰奇并非日常之事，但陈-察-祖温已见过它们许多次。她见过那颗大卫星三次死去。她见过、听过、感受/尝过/闻过雨。那在恩尤-阿特兰奇更为罕见。但也并非全然未知。恩尤-阿特兰奇上的雨是淡的。那些构成恩尤-阿特兰奇之海特
+[13:47:20]  Using raw response as fallback (plain text mode)
+[13:47:20]  Unit 30/139 translated successfully
+[13:47:20]  Translating unit 31/139 (chunk_30)
+💬 DeepSeek: 1067+307 tokens (cache hit 512, miss 555)
+[13:47:23]  Unit 31/139 translated successfully
+[13:47:23]  Translating unit 32/139 (chunk_31)
+💬 DeepSeek: 1182+411 tokens (cache hit 512, miss 670)
+[13:47:30]  Unit 32/139 translated successfully
+[13:47:30]  Translating unit 33/139 (chunk_32)
+💬 DeepSeek: 1014+231 tokens (cache hit 512, miss 502)
+[13:47:34]  Unit 33/139 translated successfully
+[13:47:34]  Translating unit 34/139 (chunk_33)
+💬 DeepSeek: 944+197 tokens (cache hit 512, miss 432)
+[13:47:37]  Unit 34/139 translated successfully
+[13:47:37]  Translating unit 35/139 (chunk_34)
+💬 DeepSeek: 1067+294 tokens (cache hit 512, miss 555)
+[13:47:40]  Unit 35/139 translated successfully
+[13:47:40]  Translating unit 36/139 (chunk_35)
+💬 DeepSeek: 1148+347 tokens (cache hit 512, miss 636)
+[13:47:44]  Unit 36/139 translated successfully
+[13:47:44]  Translating unit 37/139 (chunk_36)
+💬 DeepSeek: 1129+351 tokens (cache hit 512, miss 617)
+[13:47:49]  Unit 37/139 translated successfully
+[13:47:49]  Translating unit 38/139 (chunk_37)
+💬 DeepSeek: 1191+401 tokens (cache hit 512, miss 679)
+[13:47:55]  Unit 38/139 translated successfully
+[13:47:55]  Translating unit 39/139 (chunk_38)
+💬 DeepSeek: 1195+413 tokens (cache hit 512, miss 683)
+[13:48:00]  ⚠️ WARNING: Failed to extract translation (tags not found or malformed)
+[13:48:00]  Response preview (first 300 chars): <TRANSLATION>
+她并不寻找上方或下方的泄水孔，但过了一段时间，她来到一个泄水孔下方。透过浓郁的海水，她隐约看见上方的光亮：夜星与月亮。她模糊地将身形弓向垂直方向，慵懒地向上划动，再次保持水平，随流漂游。过了一段时间，NGC 7007——纽-亚特兰奇的太阳——升起，照亮天空，光芒在海面与晶体上反射、折射。过了一段时间，仰面漂浮的陈-查-兹-楚恩几乎惊觉地感知到那线条之物在她四周的击触，感到自己被牵引、被托起，被带离纽-亚特兰奇的水域片刻。她瞬间被前所未有、全新的数据淹没，仿佛被彻底移出了自己的世界。她的感官向神经中枢闪送着混乱的信息。她听见从未听过的声音，看见未知且无法理解的景象，感
+[13:48:00]  Using raw response as fallback (plain text mode)
+[13:48:00]  Unit 39/139 translated successfully
+[13:48:00]  Translating unit 40/139 (chunk_39)
+💬 DeepSeek: 1132+377 tokens (cache hit 512, miss 620)
+[13:48:05]  Unit 40/139 translated successfully
+[13:48:05]  Translating unit 41/139 (chunk_40)
+💬 DeepSeek: 1138+355 tokens (cache hit 512, miss 626)
+[13:48:10]  Unit 41/139 translated successfully
+[13:48:10]  Translating unit 42/139 (chunk_41)
+💬 DeepSeek: 1132+367 tokens (cache hit 512, miss 620)
+[13:48:14]  Unit 42/139 translated successfully
+[13:48:14]  Translating unit 43/139 (chunk_42)
+💬 DeepSeek: 1136+397 tokens (cache hit 512, miss 624)
+[13:48:21]  Unit 43/139 translated successfully
+[13:48:21]  Translating unit 44/139 (chunk_43)
+💬 DeepSeek: 1101+335 tokens (cache hit 512, miss 589)
+[13:48:26]  Unit 44/139 translated successfully
+[13:48:26]  Translating unit 45/139 (chunk_44)
+💬 DeepSeek: 1186+463 tokens (cache hit 512, miss 674)
+[13:48:32]  Unit 45/139 translated successfully
+[13:48:32]  Translating unit 46/139 (chunk_45)
+💬 DeepSeek: 1187+388 tokens (cache hit 512, miss 675)
+[13:48:37]  Unit 46/139 translated successfully
+[13:48:37]  Translating unit 47/139 (chunk_46)
+💬 DeepSeek: 1004+215 tokens (cache hit 512, miss 492)
+[13:48:39]  Unit 47/139 translated successfully
+[13:48:39]  Translating unit 48/139 (chunk_47)
+💬 DeepSeek: 1147+384 tokens (cache hit 512, miss 635)
+[13:48:44]  Unit 48/139 translated successfully
+[13:48:44]  Translating unit 49/139 (chunk_48)
+💬 DeepSeek: 1166+397 tokens (cache hit 512, miss 654)
+[13:48:50]  ⚠️ WARNING: Failed to extract translation (tags not found or malformed)
+[13:48:50]  Response preview (first 300 chars): <TRANSLATION>
+镜头此时切到房间门口，显示出另一辆推车。当它被推进到位时，画面又切回俯拍视角。手术台上原有的那具尸体，先前参差不齐的撕裂伤口边缘，此刻已呈现出整齐的切面。“这当然是后来的画面，”特鲁多说，“目前手术需要好几个小时。这正是我们希望借助批量技术克服的缺点之一。”贡库尔伸手探进他那件松垮外套的口袋，掏出一只小烟斗，装上了烟丝。“我要完整地看完这个。”他说。特鲁多替他划了根火柴。透过蓝灰色的烟雾，画面继续变换着。
+
+“第二具尸体已经按您所见准备好了，”特鲁多说，“皮肤经过修整，与第一具尸体的创面范围相吻合，并留有足够的重叠部分以促进快速愈合。内脏器官保持完整——每个器官都完
+[13:48:50]  Using raw response as fallback (plain text mode)
+[13:48:50]  Unit 49/139 translated successfully
+[13:48:50]  Translating unit 50/139 (chunk_49)
+💬 DeepSeek: 1137+399 tokens (cache hit 512, miss 625)
+[13:48:54]  Unit 50/139 translated successfully
+[13:48:54]  Translating unit 51/139 (chunk_50)
+💬 DeepSeek: 1169+397 tokens (cache hit 512, miss 657)
+[13:48:59]  Unit 51/139 translated successfully
+[13:48:59]  Translating unit 52/139 (chunk_51)
+💬 DeepSeek: 1152+403 tokens (cache hit 512, miss 640)
+[13:49:04]  Unit 52/139 translated successfully
+[13:49:04]  Translating unit 53/139 (chunk_52)
+💬 DeepSeek: 1191+412 tokens (cache hit 512, miss 679)
+[13:49:09]  Unit 53/139 translated successfully
+[13:49:09]  Translating unit 54/139 (chunk_53)
+💬 DeepSeek: 1176+421 tokens (cache hit 512, miss 664)
+[13:49:15]  Unit 54/139 translated successfully
+[13:49:15]  Translating unit 55/139 (chunk_54)
+💬 DeepSeek: 1129+378 tokens (cache hit 512, miss 617)
+[13:49:20]  Unit 55/139 translated successfully
+[13:49:20]  Translating unit 56/139 (chunk_55)
+💬 DeepSeek: 1208+409 tokens (cache hit 512, miss 696)
+[13:49:26]  Unit 56/139 translated successfully
+[13:49:26]  Translating unit 57/139 (chunk_56)
+💬 DeepSeek: 1162+431 tokens (cache hit 512, miss 650)
+[13:49:32]  Unit 57/139 translated successfully
+[13:49:32]  Translating unit 58/139 (chunk_57)
+💬 DeepSeek: 1139+342 tokens (cache hit 512, miss 627)
+[13:49:37]  Unit 58/139 translated successfully
+[13:49:37]  Translating unit 59/139 (chunk_58)
+💬 DeepSeek: 1148+382 tokens (cache hit 512, miss 636)
+[13:49:43]  Unit 59/139 translated successfully
+[13:49:43]  Translating unit 60/139 (chunk_59)
+💬 DeepSeek: 1131+345 tokens (cache hit 512, miss 619)
+[13:49:47]  Unit 60/139 translated successfully
+[13:49:47]  Translating unit 61/139 (chunk_60)
+💬 DeepSeek: 1191+415 tokens (cache hit 512, miss 679)
+[13:49:52]  Unit 61/139 translated successfully
+[13:49:52]  Translating unit 62/139 (chunk_61)
+💬 DeepSeek: 914+167 tokens (cache hit 512, miss 402)
+[13:49:54]  Unit 62/139 translated successfully
+[13:49:54]  Translating unit 63/139 (chunk_62)
+💬 DeepSeek: 1156+455 tokens (cache hit 512, miss 644)
+[13:49:59]  Unit 63/139 translated successfully
+[13:49:59]  Translating unit 64/139 (chunk_63)
+💬 DeepSeek: 1146+417 tokens (cache hit 512, miss 634)
+[13:50:04]  Unit 64/139 translated successfully
+[13:50:04]  Translating unit 65/139 (chunk_64)
+💬 DeepSeek: 1127+404 tokens (cache hit 512, miss 615)
+[13:50:08]  Unit 65/139 translated successfully
+[13:50:08]  Translating unit 66/139 (chunk_65)
+💬 DeepSeek: 1177+424 tokens (cache hit 512, miss 665)
+[13:50:13]  Unit 66/139 translated successfully
+[13:50:13]  Translating unit 67/139 (chunk_66)
+💬 DeepSeek: 1142+367 tokens (cache hit 512, miss 630)
+[13:50:17]  Unit 67/139 translated successfully
+[13:50:17]  Translating unit 68/139 (chunk_67)
+💬 DeepSeek: 1114+374 tokens (cache hit 512, miss 602)
+[13:50:22]  Unit 68/139 translated successfully
+[13:50:22]  Translating unit 69/139 (chunk_68)
+💬 DeepSeek: 1151+349 tokens (cache hit 512, miss 639)
+[13:50:27]  Unit 69/139 translated successfully
+[13:50:27]  Translating unit 70/139 (chunk_69)
+💬 DeepSeek: 1129+341 tokens (cache hit 512, miss 617)
+[13:50:31]  Unit 70/139 translated successfully
+[13:50:31]  Translating unit 71/139 (chunk_70)
+💬 DeepSeek: 1096+330 tokens (cache hit 512, miss 584)
+[13:50:34]  Unit 71/139 translated successfully
+[13:50:34]  Translating unit 72/139 (chunk_71)
+💬 DeepSeek: 1169+425 tokens (cache hit 512, miss 657)
+[13:50:39]  Unit 72/139 translated successfully
+[13:50:39]  Translating unit 73/139 (chunk_72)
+💬 DeepSeek: 1162+379 tokens (cache hit 512, miss 650)
+[13:50:44]  Unit 73/139 translated successfully
+[13:50:44]  Translating unit 74/139 (chunk_73)
+💬 DeepSeek: 1172+387 tokens (cache hit 512, miss 660)
+[13:50:48]  Unit 74/139 translated successfully
+[13:50:48]  Translating unit 75/139 (chunk_74)
+💬 DeepSeek: 942+171 tokens (cache hit 512, miss 430)
+[13:50:51]  ⚠️ WARNING: Failed to extract translation (tags not found or malformed)
+[13:50:51]  Response preview (first 300 chars): <TRANSLATION>
+我的意思是，并不是说格洛乌想看到鲍死掉。黑尔，受点小伤就够了，只要别太小。鲍暂时退出行动，戈德就能重新当上班长，等鲍从医务室回来，他就没活儿干了！这才是办法。戈德吊在铺位上（帽子整齐地系在下巴底下），美滋滋地梦着某个漂亮的北阿拉巴马姑娘（也许是梅里-阿斯·马卡姆小姐，又或许不是），离开西尔梅太空港没几个小时，吃了饭，安顿下来，装备收好，武器检查过，跟指挥官、班长鲍、舰上记录、牧师、军需官、连部文书以及必要的最少几个人都报过到，正幸福地鼾声如雷，惹恼了几个早起的人（？
+[13:50:51]  Using raw response as fallback (plain text mode)
+[13:50:51]  Unit 75/139 translated successfully
+[13:50:51]  Translating unit 76/139 (chunk_75)
+💬 DeepSeek: 1050+291 tokens (cache hit 512, miss 538)
+[13:50:55]  Unit 76/139 translated successfully
+[13:50:55]  Translating unit 77/139 (chunk_76)
+💬 DeepSeek: 1181+425 tokens (cache hit 512, miss 669)
+[13:51:00]  Unit 77/139 translated successfully
+[13:51:00]  Translating unit 78/139 (chunk_77)
+💬 DeepSeek: 1198+400 tokens (cache hit 512, miss 686)
+[13:51:05]  Unit 78/139 translated successfully
+[13:51:05]  Translating unit 79/139 (chunk_78)
+💬 DeepSeek: 883+140 tokens (cache hit 512, miss 371)
+[13:51:08]  Unit 79/139 translated successfully
+[13:51:08]  Translating unit 80/139 (chunk_79)
+💬 DeepSeek: 1138+360 tokens (cache hit 512, miss 626)
+[13:51:12]  Unit 80/139 translated successfully
+[13:51:12]  Translating unit 81/139 (chunk_80)
+💬 DeepSeek: 1174+448 tokens (cache hit 512, miss 662)
+[13:51:18]  Unit 81/139 translated successfully
+[13:51:18]  Translating unit 82/139 (chunk_81)
+💬 DeepSeek: 1146+465 tokens (cache hit 512, miss 634)
+[13:51:23]  Unit 82/139 translated successfully
+[13:51:23]  Translating unit 83/139 (chunk_82)
+💬 DeepSeek: 1160+402 tokens (cache hit 512, miss 648)
+[13:51:28]  Unit 83/139 translated successfully
+[13:51:28]  Translating unit 84/139 (chunk_83)
+💬 DeepSeek: 1186+438 tokens (cache hit 512, miss 674)
+[13:51:34]  Unit 84/139 translated successfully
+[13:51:34]  Translating unit 85/139 (chunk_84)
+💬 DeepSeek: 1119+427 tokens (cache hit 512, miss 607)
+[13:51:39]  Unit 85/139 translated successfully
+[13:51:39]  Translating unit 86/139 (chunk_85)
+💬 DeepSeek: 1150+381 tokens (cache hit 512, miss 638)
+[13:51:43]  Unit 86/139 translated successfully
+[13:51:43]  Translating unit 87/139 (chunk_86)
+💬 DeepSeek: 1173+464 tokens (cache hit 512, miss 661)
+[13:51:48]  Unit 87/139 translated successfully
+[13:51:48]  Translating unit 88/139 (chunk_87)
+💬 DeepSeek: 1194+453 tokens (cache hit 512, miss 682)
+[13:51:52]  Unit 88/139 translated successfully
+[13:51:52]  Translating unit 89/139 (chunk_88)
+💬 DeepSeek: 1117+366 tokens (cache hit 512, miss 605)
+[13:51:57]  Unit 89/139 translated successfully
+[13:51:57]  Translating unit 90/139 (chunk_89)
+💬 DeepSeek: 1160+404 tokens (cache hit 512, miss 648)
+[13:52:01]  Unit 90/139 translated successfully
+[13:52:01]  Translating unit 91/139 (chunk_90)
+💬 DeepSeek: 1100+384 tokens (cache hit 512, miss 588)
+[13:52:06]  Unit 91/139 translated successfully
+[13:52:06]  Translating unit 92/139 (chunk_91)
+💬 DeepSeek: 1000+269 tokens (cache hit 512, miss 488)
+[13:52:09]  Unit 92/139 translated successfully
+[13:52:09]  Translating unit 93/139 (chunk_92)
+💬 DeepSeek: 1126+385 tokens (cache hit 512, miss 614)
+[13:52:14]  ⚠️ WARNING: Failed to extract translation (tags not found or malformed)
+[13:52:14]  Response preview (first 300 chars): <TRANSLATION>
+在星光闪烁的奥金加·奥丁加号与死寂残破的东土号之间，克里斯托夫·贝勒多的小队再次开始集结成形。克里斯托夫走向自己在队列中的位置，留意着圆盘状自由落体编队中的缺口。在极远极远的地方，他能看到其他待打捞的场景——胜利的舰船灯火通明，得意洋洋地依偎在死寂残骸旁，如同得胜的猛兽伏在猎物的尸体边。这边，贝勒多能辨认出一艘恩海地胜利舰的轮廓；那边，是一艘恩阿拉巴马舰。星际大战的余波中，一种奇异的休战似乎降临——幸存者们因自己竟能活下来而满怀感激与惊异，只专注于自身的撤离和对己方猎物的劫掠。他们不愿因与其他舰队的幸存者愚蠢地挑起争端，而危及自己作为幸存者的地位。贝勒多凝视远方：恩
+[13:52:14]  Using raw response as fallback (plain text mode)
+[13:52:14]  Unit 93/139 translated successfully
+[13:52:14]  Translating unit 94/139 (chunk_93)
+💬 DeepSeek: 969+229 tokens (cache hit 512, miss 457)
+[13:52:17]  Unit 94/139 translated successfully
+[13:52:17]  Translating unit 95/139 (chunk_94)
+💬 DeepSeek: 1173+443 tokens (cache hit 512, miss 661)
+[13:52:22]  Unit 95/139 translated successfully
+[13:52:22]  Translating unit 96/139 (chunk_95)
+💬 DeepSeek: 1088+330 tokens (cache hit 512, miss 576)
+[13:52:26]  Unit 96/139 translated successfully
+[13:52:26]  Translating unit 97/139 (chunk_96)
+💬 DeepSeek: 1108+354 tokens (cache hit 512, miss 596)
+[13:52:30]  Unit 97/139 translated successfully
+[13:52:30]  Translating unit 98/139 (chunk_97)
+💬 DeepSeek: 1162+420 tokens (cache hit 512, miss 650)
+[13:52:35]  Unit 98/139 translated successfully
+[13:52:35]  Translating unit 99/139 (chunk_98)
+💬 DeepSeek: 1142+379 tokens (cache hit 512, miss 630)
+[13:52:40]  Unit 99/139 translated successfully
+[13:52:40]  Translating unit 100/139 (chunk_99)
+💬 DeepSeek: 1170+420 tokens (cache hit 512, miss 658)
+[13:52:44]  Unit 100/139 translated successfully
+[13:52:44]  Translating unit 101/139 (chunk_100)
+💬 DeepSeek: 1193+445 tokens (cache hit 512, miss 681)
+[13:52:50]  Unit 101/139 translated successfully
+[13:52:50]  Translating unit 102/139 (chunk_101)
+💬 DeepSeek: 1047+304 tokens (cache hit 512, miss 535)
+[13:52:53]  Unit 102/139 translated successfully
+[13:52:53]  Translating unit 103/139 (chunk_102)
+💬 DeepSeek: 1096+351 tokens (cache hit 512, miss 584)
+[13:52:57]  Unit 103/139 translated successfully
+[13:52:57]  Translating unit 104/139 (chunk_103)
+💬 DeepSeek: 1178+429 tokens (cache hit 512, miss 666)
+[13:53:02]  Unit 104/139 translated successfully
+[13:53:02]  Translating unit 105/139 (chunk_104)
+💬 DeepSeek: 1079+314 tokens (cache hit 512, miss 567)
+[13:53:06]  Unit 105/139 translated successfully
+[13:53:06]  Translating unit 106/139 (chunk_105)
+💬 DeepSeek: 1142+382 tokens (cache hit 512, miss 630)
+[13:53:10]  Unit 106/139 translated successfully
+[13:53:10]  Translating unit 107/139 (chunk_106)
+💬 DeepSeek: 1167+409 tokens (cache hit 512, miss 655)
+[13:53:15]  Unit 107/139 translated successfully
+[13:53:15]  Translating unit 108/139 (chunk_107)
+💬 DeepSeek: 1080+331 tokens (cache hit 512, miss 568)
+[13:53:19]  Unit 108/139 translated successfully
+[13:53:19]  Translating unit 109/139 (chunk_108)
+💬 DeepSeek: 1068+337 tokens (cache hit 512, miss 556)
+[13:53:23]  Unit 109/139 translated successfully
+[13:53:23]  Translating unit 110/139 (chunk_109)
+💬 DeepSeek: 1179+414 tokens (cache hit 512, miss 667)
+[13:53:28]  Unit 110/139 translated successfully
+[13:53:28]  Translating unit 111/139 (chunk_110)
+💬 DeepSeek: 1150+405 tokens (cache hit 512, miss 638)
+[13:53:33]  Unit 111/139 translated successfully
+[13:53:33]  Translating unit 112/139 (chunk_111)
+💬 DeepSeek: 1191+419 tokens (cache hit 512, miss 679)
+[13:53:38]  Unit 112/139 translated successfully
+[13:53:38]  Translating unit 113/139 (chunk_112)
+💬 DeepSeek: 1075+309 tokens (cache hit 512, miss 563)
+[13:53:42]  Unit 113/139 translated successfully
+[13:53:42]  Translating unit 114/139 (chunk_113)
+💬 DeepSeek: 1115+343 tokens (cache hit 512, miss 603)
+[13:53:46]  Unit 114/139 translated successfully
+[13:53:46]  Translating unit 115/139 (chunk_114)
+💬 DeepSeek: 1150+389 tokens (cache hit 512, miss 638)
+[13:53:51]  Unit 115/139 translated successfully
+[13:53:51]  Translating unit 116/139 (chunk_115)
+💬 DeepSeek: 1029+255 tokens (cache hit 512, miss 517)
+[13:53:54]  Unit 116/139 translated successfully
+[13:53:54]  Translating unit 117/139 (chunk_116)
+💬 DeepSeek: 1178+428 tokens (cache hit 512, miss 666)
+[13:53:58]  Unit 117/139 translated successfully
+[13:53:58]  Translating unit 118/139 (chunk_117)
+💬 DeepSeek: 1155+405 tokens (cache hit 512, miss 643)
+[13:54:03]  Unit 118/139 translated successfully
+[13:54:03]  Translating unit 119/139 (chunk_118)
+💬 DeepSeek: 1115+366 tokens (cache hit 512, miss 603)
+[13:54:08]  Unit 119/139 translated successfully
+[13:54:08]  Translating unit 120/139 (chunk_119)
+💬 DeepSeek: 1143+402 tokens (cache hit 512, miss 631)
+[13:54:12]  Unit 120/139 translated successfully
+[13:54:12]  Translating unit 121/139 (chunk_120)
+💬 DeepSeek: 1079+316 tokens (cache hit 512, miss 567)
+[13:54:17]  Unit 121/139 translated successfully
+[13:54:17]  Translating unit 122/139 (chunk_121)
+💬 DeepSeek: 1118+390 tokens (cache hit 512, miss 606)
+[13:54:22]  Unit 122/139 translated successfully
+[13:54:22]  Translating unit 123/139 (chunk_122)
+💬 DeepSeek: 1160+397 tokens (cache hit 512, miss 648)
+[13:54:26]  Unit 123/139 translated successfully
+[13:54:26]  Translating unit 124/139 (chunk_123)
+💬 DeepSeek: 1090+300 tokens (cache hit 512, miss 578)
+[13:54:30]  Unit 124/139 translated successfully
+[13:54:30]  Translating unit 125/139 (chunk_124)
+💬 DeepSeek: 1189+438 tokens (cache hit 512, miss 677)
+[13:54:35]  Unit 125/139 translated successfully
+[13:54:35]  Translating unit 126/139 (chunk_125)
+💬 DeepSeek: 1179+411 tokens (cache hit 512, miss 667)
+[13:54:40]  Unit 126/139 translated successfully
+[13:54:40]  Translating unit 127/139 (chunk_126)
+💬 DeepSeek: 1119+367 tokens (cache hit 512, miss 607)
+[13:54:45]  Unit 127/139 translated successfully
+[13:54:45]  Translating unit 128/139 (chunk_127)
+💬 DeepSeek: 1121+387 tokens (cache hit 512, miss 609)
+[13:54:50]  Unit 128/139 translated successfully
+[13:54:50]  Translating unit 129/139 (chunk_128)
+💬 DeepSeek: 1200+473 tokens (cache hit 512, miss 688)
+[13:54:57]  Unit 129/139 translated successfully
+[13:54:57]  Translating unit 130/139 (chunk_129)
+💬 DeepSeek: 1158+370 tokens (cache hit 512, miss 646)
+[13:55:02]  Unit 130/139 translated successfully
+[13:55:02]  Translating unit 131/139 (chunk_130)
+💬 DeepSeek: 1093+349 tokens (cache hit 512, miss 581)
+[13:55:07]  Unit 131/139 translated successfully
+[13:55:07]  Translating unit 132/139 (chunk_131)
+💬 DeepSeek: 1178+468 tokens (cache hit 512, miss 666)
+[13:55:13]  Unit 132/139 translated successfully
+[13:55:13]  Translating unit 133/139 (chunk_132)
+💬 DeepSeek: 1116+386 tokens (cache hit 512, miss 604)
+[13:55:18]  Unit 133/139 translated successfully
+[13:55:18]  Translating unit 134/139 (chunk_133)
+💬 DeepSeek: 1120+377 tokens (cache hit 512, miss 608)
+[13:55:23]  Unit 134/139 translated successfully
+[13:55:23]  Translating unit 135/139 (chunk_134)
+💬 DeepSeek: 1110+341 tokens (cache hit 512, miss 598)
+[13:55:28]  Unit 135/139 translated successfully
+[13:55:28]  Translating unit 136/139 (chunk_135)
+💬 DeepSeek: 1102+357 tokens (cache hit 512, miss 590)
+[13:55:32]  Unit 136/139 translated successfully
+[13:55:32]  Translating unit 137/139 (chunk_136)
+💬 DeepSeek: 1191+469 tokens (cache hit 512, miss 679)
+[13:55:38]  Unit 137/139 translated successfully
+[13:55:38]  Translating unit 138/139 (chunk_137)
+💬 DeepSeek: 1187+429 tokens (cache hit 512, miss 675)
+[13:55:43]  Unit 138/139 translated successfully
+[13:55:43]  Translating unit 139/139 (chunk_138)
+💬 DeepSeek: 811+65 tokens (cache hit 512, miss 299)
+[13:55:44]  Unit 139/139 translated successfully
+[13:55:44]  Reconstructing output file
+[13:55:44]  Output file written to /home/tessier/GitHub/Terragen/Script/ab/out/book-flash.txt
+[13:55:44]  Translation completed successfully: 139 units
+
+TRANSLATION COMPLETE
+Duration: 0:12:10.866770
+Output saved to: /home/tessier/GitHub/Terragen/Script/ab/out/book-flash.txt
+RUN_EXIT=0

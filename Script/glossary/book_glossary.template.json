@@ -1,0 +1,41 @@
+{
+  "_doc": "单书 glossary 工作模板。与 TranslateBooksWithLLMs --glossary 兼容(其加载器只读取 source/target/category/gender, 其余字段忽略); 同一文件可直接被 Script/qa/qa_checks.py 消费。lock_level=confirmed 的条目会被 QA 强制检查。",
+  "version": 2,
+  "book": {
+    "title": "",
+    "author": "",
+    "source_lang": "en",
+    "target_lang": "zh-Hans",
+    "book_id": "book-01"
+  },
+  "terms": [
+    {
+      "id": "example-1",
+      "source": "Jon Snow",
+      "target": "琼恩·雪诺",
+      "aliases": ["Jon", "Lord Snow"],
+      "type": "character",
+      "category": "person",
+      "gender": "male",
+      "lock_level": "confirmed",
+      "confidence": "high",
+      "frequency": 0,
+      "first_seen_book": "book-01",
+      "notes": ""
+    },
+    {
+      "id": "example-2",
+      "source": "Winterfell",
+      "target": "临冬城",
+      "aliases": [],
+      "type": "place",
+      "category": "location",
+      "gender": "unknown",
+      "lock_level": "suggested",
+      "confidence": "medium",
+      "frequency": 0,
+      "first_seen_book": "book-01",
+      "notes": ""
+    }
+  ]
+}
