@@ -76,7 +76,7 @@ EPUB → parser → chunking → glossary discovery → glossary DB → translat
 
 1. ✅ 代码级核对 TranslateBooksWithLLMs → `Script/review-TBWLLM-v1.5.9.md`。
 2. 打 **P1 补丁**（读取 `prompt_cache_hit_tokens`，A/B 前置）→ 20-chunk A/B：官方 vs 硅基流动、flash vs pro；记录 input/cached/output tokens、耗时与译文质量抽样。
-3. 打 **P2 补丁**（CLI resume 命令）——CLI 路线必备；补丁以文件形式管理于 `Script/patches/`，不进子模组提交。
+3. ✅ **P2 补丁**（CLI resume 命令）已完成并推送至 fork（`a656e39`）；补丁由子模组 git 历史管理（原 `Script/patches/` 备份已删除）。
 4. 单书 MVP：txt 输入，选一本 10–20 章的真实小说跑通最小闭环，记录每章成本与质量。
 5. 确定性 QA 模块（Script/ 侧）。
 6. 验收：抽 3 章人工精读。

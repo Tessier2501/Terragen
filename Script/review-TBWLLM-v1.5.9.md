@@ -81,7 +81,7 @@
 **决策**：
 - 运行形态：**CLI 路线**（不用 exe，源码直接跑；批量/低谷时段调度方便）。
 - 输入格式：**优先 txt**；EPUB 如有问题直接回退 txt-only（EPUB 管线是 upstream 高频改动区 + token_aligned 不可重译限制）。
-- 补丁不进子模组提交：以 patch 文件形式管理于 `Script/patches/`，应用后子模组保持 dirty 状态即可（子模组 pinned v1.5.9，不推送）。
+- 补丁提交于 fork（`Tessier2501/TranslateBooksWithLLMsMod`，commit `a656e39`），子模组随 fork main 更新；原 `Script/patches/` 备份已删除。
 
 **补丁清单**：
 - **P1（已批准，A/B 前置）**：读取 `prompt_cache_hit_tokens`/`prompt_cache_miss_tokens`——`LLMResponse`（`llm/base.py:39-48`）加字段 + `deepseek.py:264-277`、`openai.py:136-153` usage 解析 + 透传到日志/stats。
