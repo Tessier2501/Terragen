@@ -1,6 +1,6 @@
 # Terragen 整书翻译 Pipeline 计划
 
-> 状态：代码级核对完成（见 `review-TBWLLM-v1.5.9.md`）；下一步打 P1 补丁 → 20-chunk A/B → 单书 MVP。
+> 状态：核对与试运行完成（run1–4 见 `Script/ab/logs/`）；修复批 + P3 已实现并推送 fork `9f9b35d`；glossary 默认开启；下一步整书 P3 版对比与单书 MVP。
 
 ## 目标
 
@@ -56,6 +56,7 @@
 - 单书（MVP）：全书提取 → 去重合并 → 人工锁定关键实体（人名/地名/术语）→ 翻译时按固定顺序注入 → QA 检查锁定术语变体。
 - 系列：跨书术语库（单文件 JSON，大了迁 SQLite）；新书用已知实体做 seed → 只增量提取新实体 → merge（新别名并入已有实体）→ 冲突检测（同一形式跨书指代不同实体时带当前书上下文或人工裁决）→ 跨书 QA 检查锁定术语一致性。
 - 系列的增量提取是跨书成本优化的关键：每本书只找新实体，不重复全书提取。
+- glossary 默认开启：CLI 默认执行 auto-glossary（提取失败自动重试 1 次）；`--no-auto-glossary` 可关闭；`--glossary` 提供人工锁定文件时自动跳过 auto。
 
 ### 5. 架构
 
@@ -75,7 +76,7 @@ EPUB → parser → chunking → glossary discovery → glossary DB → translat
 ## 下一步行动
 
 1. ✅ 代码级核对 TranslateBooksWithLLMs → `Script/review-TBWLLM-v1.5.9.md`。
-2. 打 **P1 补丁**（读取 `prompt_cache_hit_tokens`，A/B 前置）→ 20-chunk A/B：官方 vs 硅基流动、flash vs pro；记录 input/cached/output tokens、耗时与译文质量抽样。
+2. ✅ **P1 补丁 + A/B 类试运行完成**：P1 推 fork（`a656e39`）；整书/样本试运行 run1–4 记录于 `Script/ab/logs/`（成本 $0.054–0.066/本，命中率 34.8–53.8%）。
 3. ✅ **P2 补丁**（CLI resume 命令）已完成并推送至 fork（`a656e39`）；补丁由子模组 git 历史管理（原 `Script/patches/` 备份已删除）。
 4. 单书 MVP：txt 输入，选一本 10–20 章的真实小说跑通最小闭环，记录每章成本与质量。
 5. 确定性 QA 模块（Script/ 侧）。
@@ -87,7 +88,7 @@ EPUB → parser → chunking → glossary discovery → glossary DB → translat
 
 ### 缓存与成本
 
-- **P3 升级为优先项**：试运行命中率 44.7% ≈ 仅 system prompt 命中（每 chunk ≈505 token），user prompt 可变块前置截断了前缀；外部项目实测"稳定内容前置 + 变量置尾"达 58–88%。执行：user prompt 中稳定块（固定排序 glossary）前置、可变块（前一译文、当前 chunk）置尾。
+- ✅ **P3 已实现（fork `9f9b35d`）**：user prompt 中 glossary 固定块前置、可变块置尾（prompts.py 两处）。验证（run4，24 chunk 样本）：每 chunk 命中从 512（仅 system）升至 896（system+glossary），命中率 53.8%；整书预估 glossary 注入成本从 +$0.012 降至 ≈+$0.001。
 - **链式增长前缀（更大收益，可选路线）**：前缀 = 已译前文"只增不减"，相邻请求共享近全前缀（外部项目最高 88% 命中、输入 97% 为前缀但几乎全命中）。与 P3 重排二选一或叠加，先对照再定。
 - **对照实验做参数 ablation**：前缀长度 × 命中率 × 术语漂移 × 流畅度，不同体量书 × 多档前缀长度，出数据再定默认值（外部项目 32k 前缀即未经对照翻倍的拍脑袋值）。
 - **chunk 大小调参**：试运行 450 token → 139 chunks；纯散文在云端大上下文可用 1500–2000 token，减少请求数并改善 chunk 内一致性，作为对照参数之一。
@@ -95,7 +96,8 @@ EPUB → parser → chunking → glossary discovery → glossary DB → translat
 ### 质量与一致性
 
 - **跨 chunk 术语漂移设为质量评估专项**：当前上下文仅"前一译文末 25 词"，`context_before/after` 为死参数，一致性依赖 glossary 锁定；若 `book-flash.txt` 评估发现漂移，将"长前文上下文"提为补丁。
-- **抽查 fallback chunk**：试运行出现 5 次"Failed to extract translation"（raw fallback），对应日志 `run1-flash.log` 行 97/128/162/246/304 附近。
+- ✅ **标签缺失问题已根因定位并修复（fork `9f9b35d`）**：deepseek-v4-flash 约 3.5–4% 响应发出 `<TRANSLATION>` 后未闭合就停止；提取器要求闭合标签 → 失败 → raw fallback 把裸标签写进输出（run1/2/3 输出各含 5/5/6 处 `<TRANSLATION>` 残留，已确认）。修复：F2 extractor 容忍"有开标签无闭合"（取开标签后内容）；F1 fallback 剥离前导标签；F4 providers 记录 finish_reason；run4 样本 0 次 fallback。
+- ✅ **NER 空结果重试（F5）**：`auto_glossary` 提取为空时重试 1 次（run2 曾因单次坏响应得到 0 术语，重试请求近同前缀、缓存便宜）。
 
 ### 安全与卫生
 
@@ -103,7 +105,7 @@ EPUB → parser → chunking → glossary discovery → glossary DB → translat
 
 ### 稳健性
 
-- **P2 resume 增加输入 hash 校验**：resume 前比对存储的输入 hash，防止书文件被改动后 resume 造成源文/译文错位（外部项目 P1-1）。
+- ✅ **P2 resume 输入 hash 校验已实现（fork `9f9b35d`）**：resume 时若原输入文件与保留的 checkpoint 上传副本 hash 不一致则告警，防止源文/译文错位（外部项目 P1-1）。
 - **QA 未译英文检测按源语种参数化**：当前仅 EN→ZH；引入其他源语种时按语种分功能词表，勿混表（外部项目 P1-3）。
 - **成本/命中数据按 run 单独归档对比**：当前 per-run 日志 + summary 已正确，多 run 对比时勿跨 run 累加（外部项目 P1-2）。
 
