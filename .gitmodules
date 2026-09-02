@@ -3,4 +3,4 @@
 	url = https://github.com/Tessier2501/IndustriesOfEnceladusRewriteCN
 [submodule "TranslateBooksWithLLMs"]
 	path = TranslateBooksWithLLMs
-	url = https://github.com/hydropix/TranslateBooksWithLLMs
+	url = https://github.com/Tessier2501/TranslateBooksWithLLMsMod.git
