@@ -50,125 +50,113 @@ Terragen/
 
 ### 高级设置准备 (正式全书前, 仅计划, 未实施)
 
-> 已读基座 docs: `STYLE_EXTRACTION.md`, `API_KEY_ROTATION.md`, 配套 `CLI.md` / `PROVIDERS.md`.
-> 以下只写计划, 暂不交付/不改代码.
+> 已决定方案如下；未被选中的候选方案已清除。
 
-### 1. Web UI 建 style preset 后在 CLI 使用
+### 1. Style preset：CLI + LLM 提取建 preset（已决定）
 
-现状:
-- Web UI 可生成/保存风格 preset 到 `Custom_Instructions/*.yaml` (`translation`/`refinement` 两个 phase).
-- CLI 目前**没有** `--style` / `--custom-instruction` 参数来选择已保存 preset; CLI 只有 `--auto-style` (临时提取, 不保存, 不人工审).
+决定：
+- **在基座 CLI 增加 style 参数**，不把 Web UI 作为必经环节。
+- **采用 LLM 提取建 preset**，即由 CLI/helper 直接调用现有本地提取链路，从输入书生成并保存 YAML preset。
+- 生成物仍是 YAML，后续可人工编辑，但不作为主流程。
 
-候选方案 (待选型):
-- [ ] 方案 A (推荐): 给基座 CLI 增加 `--style <preset.yaml>` / `--custom-instruction` 参数, 复用 `src.utils.custom_instructions.load_custom_instructions`, 把内容写入 `prompt_options['custom_instructions']` / `['refinement_instructions']`; 保留 `--auto-style` 优先级规则. 后续可尝试做 upstream PR.
-- [ ] 方案 B: 在本 Script 仓库写薄封装脚本 (如 `scripts/translate_with_style.py`), 读取 Web UI 生成的 YAML, 构造与 Web handler 相同的 `prompt_options`, 直接调用 `src.core.adapters.translate_file` / `refine_file`. 不改基座或只小改.
-- [ ] 验收: 用 Web UI 建一个简单 preset, 在 CLI 跑小样本, 日志应出现 `Loaded custom instructions: <file> (phases: translation)` 且译文/润色 prompt 实际包含该风格块.
-- [ ] 兼容: 只读 `.yaml/.yml/.txt`; `translation` 与 `refinement` 可单独存在; 需保留 glossary 两阶段流程与 resume 语义.
+CLI 形态（计划）：
+- `--extract-style <input> [--save-style <name>]`
+  - 读取输入书 → `take_distributed_samples()`
+  - 调用 `extract_style()`
+  - 打印候选规则及 lint flags 供审查
+  - 审查后通过 `write_preset()` 保存到 `Custom_Instructions/<name>.yaml`
+- `--style <preset.yaml>`
+  - 翻译/润色前通过 `load_custom_instructions()` 加载已保存 preset
+  - 写入 `prompt_options['custom_instructions']` / `['refinement_instructions']`
+- 保留 `--auto-style`：一次性、不保存、不人工审。
+- 优先级：显式 `--style` > `--auto-style`；与 `--glossary` 互相独立。
 
-### 2. 加入 DeepSeek key 轮换
+复用组件（已存在，无需 Web UI）：
+- `src.utils.custom_instructions.load_custom_instructions()`
+- `read_preset()` / `write_preset()`
+- `src.utils.document_sampler.take_distributed_samples()`
+- `src.core.style.extractor.extract_style()`
+- `src.core.style.assembler.assemble_instructions()`
+- `src.core.style.lint.lint_instruction()`
 
-现状:
-- 基座支持逗号/换行分隔多 key, 429 自动 round-robin 轮换.
-- 当前本地 `.env` 的 `DEEPSEEK_API_KEY` 只有 1 个 key, 轮换未启用.
+### 2. 多 provider/API 路由：OpenAI-compatible 路由池（已决定）
 
-计划:
-- [ ] 准备 2+ 个**不同 DeepSeek 账号**的 key (同账号多 key 不增加配额).
-- [ ] 只改本地 `.env` (`DEEPSEEK_API_KEY=key1,key2,...`), 不入库; 仓库外另存副本.
-- [ ] 先跑小样本 (几十 chunk 或短章) 验证: 日志出现 `key #n/m`, 429 时换 key 无 sleep; 全部 throttled 时按 `MAX_TRANSLATION_ATTEMPTS`/`AUTO_PAUSE_ON_RATE_LIMIT` 行为暂停并 resume.
-- [ ] 若 CLI 调用, 也可临时用 `--deepseek_api_key "k1,k2"` 验证, 不写入 `.env`.
+决定：
+- **多 provider 轮换机制采用 OpenAI-compatible 路由池方案**。
 
-### 3. 对“限流很严重 / 长时间 call 无回应”的影响确认 (只做确认与决策)
+方案内容：
+- 把现有单 provider `KeyPool` 推广为 **OpenAI-compatible 路由池**。
+- 每个路由 = `(endpoint, model, api_key)`，例如：
+  - DeepSeek 官方：`https://api.deepseek.com/chat/completions` + `deepseek-v4-flash` + key
+  - SiliconFlow：`https://api.siliconflow.cn/v1` + `deepseek-ai/DeepSeek-V4-Flash-0731` + key
+  - OpenRouter：`https://openrouter.ai/api/v1/chat/completions` + model + key
+  - OpenAI paid：`https://api.openai.com/v1/chat/completions` + model + key
+- 请求/响应均为 OpenAI chat/completions 格式，路由池只需在 `OpenAICompatibleProvider` 内增加“当前路由”状态：
+  - round-robin 选路由
+  - 429 时标记该路由 throttled，换下一个可用路由
+  - 全部 throttled 时 sleep / 按现有 `RateLimitError` 自动暂停
+- DeepSeek 同 provider 多 key 轮换仍作为路由池内的子能力保留；不同账号的 DeepSeek key 可以放进同一个 DeepSeek 路由的多 key 列表，或作为不同路由。
 
-已查代码结论:
-- key 轮换只处理 **HTTP 429**: `handle_rate_limit` 会把该 key 标 throttled 并换下一个; 它**不处理挂起/no response/timeout**, 也不会把长时间无响应的 key 临时移出池.
-- DeepSeek provider 的 timeout 路径是: 每次请求超时后重试 (`MAX_TRANSLATION_ATTEMPTS=3`, 每次之间 sleep 2s), 最终返回 `None`; 该 chunk 会被记为 failed, **不是** `RateLimitError`, 所以**不会触发 rate-limit 自动暂停**, 全书可能以 partial 结束, 需要 `--resume` 补失败 chunk.
-- 若某个 key 不返回 429 而是一直挂起, 它会继续参与 round-robin, 周期性拖慢/失败, 直到人工移除.
-- 超时后重试同一次请求不是幂等的: provider 若其实已处理完第一个请求, 仍可能产生重复 API 调用/费用 (无法从当前代码完全避免).
+配置形态（待细化）：
+```bash
+OPENAI_COMPATIBLE_ROUTES=  "endpoint1|model1|key1;endpoint2|model2|key2;..."
+```
+或保留 CLI 参数组合传入多条路由。
 
-需用户确认/选择的决策:
-- [ ] 若接受“只是时间变长”: 可调大 `REQUEST_TIMEOUT` 或 `MAX_TRANSLATION_ATTEMPTS`, 让慢但最终成功的 call 有更长等待窗口.
-- [ ] 若不能接受 failed/partial chunk: 应在正式全书前对“长时间无响应”的 key 做隔离策略 (例如先短 timeout 探活/人工剔除, 或给代码增加 timeout 后临时禁用 key 的机制) — 这项尚未计划实现.
-- [ ] 是否需要为“timeout 后临时禁用/降权该 key”加补丁: 若要, 作为独立小实验, 不与 MVP 主线耦合.
+范围与边界：
+- 当前只纳入 OpenAI-compatible API。
+- Gemini、Poe 等非兼容 provider 暂不进入该路由池；如未来需要，再单独评估。
 
-### 4. 调查：如果 CLI 要新增参数，是否还需要 Web UI 来建 style preset？
+### 3. 长时间无回应 / 严重限流影响（保留确认结论）
 
-结论：**不需要把 Web UI 作为硬依赖**。Web UI 本质上是 `Custom_Instructions/` 下 YAML preset 的管理/审查界面，相关读写原语都已存在：
+- 路由池/KeyPool 只处理 HTTP 429；timeout/挂起不会自动把该路由移出池。
+- DeepSeek timeout 重试耗尽后 chunk 记为 failed，不是 `RateLimitError`，不会自动暂停；全书可能 partial，需 `--resume` 补漏。
+- 超时后重试同一请求不是幂等，可能重复计费。
+- 若接受“只是时间变长”，可调大 `REQUEST_TIMEOUT` / `MAX_TRANSLATION_ATTEMPTS`；但若 provider 只是挂起不处理，调大只会更晚失败。
+- 保留待办：如果正式跑发现 timeout 型坏路由影响明显，再考虑给路由池增加“timeout 临时禁用/降权”机制。
 
-- preset 文件格式就是普通 YAML：顶层 `translation:` / `refinement:`，也可带 `description/mode/context/rules` 元数据；旧 `.txt` 仍兼容。
-- 已有纯 CLI/本地可复用函数：
-  - `src.utils.custom_instructions.load_custom_instructions()`
-  - `read_preset()` / `write_preset()`
-  - `src.utils.document_sampler.take_distributed_samples()`
-  - `src.core.style.extractor.extract_style()`
-  - `src.core.style.assembler.assemble_instructions()`
-  - `src.core.style.lint.lint_instruction()`
-- 因此 CLI 新增能力可覆盖两条路径：
-  1. **手动建 preset**：直接写 `Custom_Instructions/xxx.yaml`，或用 `write_preset()` 保存；不需要 Web UI。
-  2. **LLM 提取建 preset**：CLI/helper 读取输入书 → 采样 → `extract_style()` → 打印规则/flags 供人工审 → 审后 `write_preset()` 落盘。也不需要 Web UI/额外服务。
+### 4. 系列跨书术语库与顺序翻译（调查与建议方案）
 
-计划倾向：
-- [ ] 若给 CLI 加参数，优先同时支持 `--style <preset>` 使用已有 preset 和 `--extract-style <input> --save-style <name>` 从书里提取并保存 preset。
-- [ ] Web UI 降级为可选工具：只用于可视化勾选/审查 lint flags；不是 CLI 工作流的必经组件。
+目标：先后翻译系列多本书时，术语库能跨书复用、逐本增量扩充，不一次性处理整个系列。
 
-### 5. 调查：API 轮换是否可多供应商参与、延长 timeout、付费 API 兜底？
+现状与约束：
+- 基座 CLI `--glossary` 只读取 `source/target/category/gender`，其他字段忽略；输入是单文件 JSON/CSV。
+- 本 `_Script` 的 glossary schema 已预留 `id/aliases/lock_level/confidence/frequency/first_seen_book/notes`，可直接承载系列库。
+- 基座没有“系列库”概念；Web UI 的 glossary store 也是单本/单命名空间，不适合直接作为 CLI 顺序翻译主存储。
 
-现状结论：
-- **当前 key 轮换不能跨 provider**。`API_KEY_ROTATION.md` 与代码均显示：一个 provider 的 key 池只接受该 provider 的多个 key（`DEEPSEEK_API_KEY=...` 只能轮 DeepSeek key，不能混入 OpenRouter/OpenAI key）。
-- **当前代码没有自动多 provider failover**。`LLMProvider` 一次只绑定一个 provider；`litellm` provider 能路由到不同上游，但本仓库 wrapper 没有实现跨 provider 自动 fallback/轮换。
-- **CLI resume 已支持换 provider 作为手动兜底**：`--resume <id> --provider openrouter -m <model>` 可把剩余/失败 chunk 换到另一个 provider 继续翻译；原 prompt_options（style/glossary）从 checkpoint 保留。这是“付费 API 兜底”的现成无代码路径。
-- **延长 timeout 可行**：`REQUEST_TIMEOUT` 当前 `300` 秒，调大即延长单次 HTTP 请求等待；`MAX_TRANSLATION_ATTEMPTS` 控制超时/瞬时错误重试次数。
-  - 注意：超时重试不触发 key 轮换；一个一直挂起的 key 仍会周期性拖慢并可能造成 failed chunk/partial 输出。
-  - 如果只追求“慢但最终成功”，可接受调大 timeout；但若 provider 实际不再处理，只是挂起，调大只会让失败更晚出现。
-- **同 provider 多 key 可作为付费兜底的一部分**：如果多个 key 来自不同账号，其中一个付费/稳定、一个免费/易限流，它们会 round-robin 使用；当前不支持“只把付费 key 当后备，优先用免费 key”的优先级策略。
+建议数据形态：
+- **主存储 = 单文件 `series_glossary.json`**（采用富 schema）。
+- 对每本书生成**只读快照/子集** `book_N.glossary.json`：
+  - 系列库中所有 `confirmed` 条目
+  - 加该书出现/可能出现的实体
+  - 供基座 CLI `--glossary` 消费（只保留 source/target/category/gender，或直接保留富字段，加载器会忽略多余字段）
+- 当条目规模增大（如超过数百/上千、需要多人并发编辑）再迁 SQLite；迁移时仍导出 JSON 快照给 CLI 使用。
 
-决策：**多 provider 轮换机制已定为必要功能**，不再是“可选/后置扩展”。
+推荐顺序翻译流程（每本书一个循环，不做一次性的整系列翻译）：
+1. **准备**：确认 `series_glossary.json` 已有前书已锁定实体；没有则从第一本开始空库。
+2. **Seed**：把系列库中与该书相关的已知实体作为 seed（不是让 NER 从头猜已锁定的译名）。
+3. **增量提取**：只对当前书跑 NER；候选结果与系列库比对，过滤掉已存在条目，保留“新实体/新别名/可能冲突”。
+4. **人工核查**：审阅新候选，合并别名，解决与旧条目的冲突，确认译名，写回 `series_glossary.json`。
+5. **翻译**：导出该书 glossary 快照，执行既有两阶段/单阶段翻译，使用 `--glossary book_N.glossary.json`。
+6. **回写统计**：翻译后把 `frequency`、`seen_books`/`last_seen_book` 等更新到系列库。
+7. **QA**：该书用 `qa/qa_checks.py` 跑确定性检查；跨书一致性检查对比所有已出书输出中同一 source 的 target 是否一致。
 
-- [ ] 需在正式全书 MVP 前完成设计并至少实现一种可行机制。
-- [ ] 目标：主 provider（如 DeepSeek）触发 rate limit / timeout / 持续失败时，系统能自动把当前或后续 chunk 交给备用 provider（如 OpenRouter/OpenAI paid），减少人工介入。
-- [ ] 验收：模拟主 provider 限流/不可用，确认任务不会停在原 provider 空转；备用 provider 能继续翻译，checkpoint、glossary、style 均保持一致。
+关键设计点：
+- **实体去重**：以稳定 `id` 为主键；新增表面形式只作为 alias 合并到已有 entry，不新增重复 source。
+- **冲突检测**：同 source 新候选 target 与旧 target 不同时，必须停下人工裁决；不自动覆盖。
+- **术语复用**：翻译新书时使用全量 confirmed + 该书相关 suggested/新审条目，避免同一角色在不同书里出现不同译名。
+- **增量而非全量 NER**：每本书只需提取“新增部分”；已知实体由系列库注入，不重复消耗 NER 预算。
+- **逐本积累**：系列库在每本书完成后只增不重译前书；前书输出不回改，除非后续发现必须修正且用户决定重译。
+- **向后兼容**：每本书最终仍是一个普通 JSON glossary 文件，可直接给现有 CLI/QA 使用。
 
-潜在的实现方式（按侵入性/复杂度从低到高排列，待选型）：
+需要的工具（计划新增，不在本阶段实现）：
+- `series_glossary.py`（或等价的 CLI 参数）子命令：
+  - `init`
+  - `extract-new --book <file> --base series_glossary.json --draft <new>.draft.json`
+  - `merge --draft <new>.draft.json --base series_glossary.json`
+  - `export --book <file> --base series_glossary.json --output <book>.glossary.json`
+- 或把这些能力做成基座 CLI 的系列模式，但优先保持独立脚本，减少对 fork 的侵入。
 
-1. **外部网关/代理方案（最低侵入）**
-   - 使用 OpenRouter、自建 LiteLLM proxy 等作为统一 API 入口。
-   - 多 provider 的 key/模型/fallback 策略全部放在网关侧。
-   - 基座仍只看到单一 provider，代码几乎不改。
-   - 优点：实现快、CLI/Web 都直接受益。
-   - 缺点：依赖外部网关/代理；若要求“基座自身控制轮换”，它不满足。
-
-2. **OpenAI-compatible 路由池（最接近当前单 provider key 轮换，推荐优先评估）**
-   - 核心思路：当前 `KeyPool` 轮换的是“同一 provider 的多个 key”；把它推广为轮换“多个 OpenAI-compatible 路由”，每个路由 = `(endpoint, model, api_key)`。
-   - 可覆盖 DeepSeek 官方、SiliconFlow、OpenRouter、OpenAI 等：它们都走 OpenAI chat/completions 格式，请求/响应结构相同。
-   - 对 429 的处理可以完全复用现有 `handle_rate_limit` 思路：标记该路由 throttled → 换下一个可用路由；全部 throttled 时 sleep / 暂停。
-   - 优点：与现有单 provider 轮换心智一致；不需要为每个 provider 单独写适配；代码改动集中在 OpenAI-compatible provider 内。
-   - 缺点：只适用于 OpenAI-compatible API；Gemini、Poe 等非兼容 provider 不能直接放进同一路由池。
-   - 建议配置形态（待细化）：
-     - `OPENAI_COMPATIBLE_ROUTES=endpoint1|model1|key1;endpoint2|model2|key2`
-     - 或继续用环境变量/CLI 传入多条 `--api_endpoint/-m/--*_api_key` 组合。
-
-3. **Job 级自动 resume 兜底脚本（较低侵入）**
-   - 在本 `_Script` 仓库写 wrapper：启动主 provider 翻译，捕获 `RateLimitError` / partial / 失败退出码后，自动用 `--resume <id> --provider <backup> -m <model>` 继续剩余 chunk。
-   - 优点：复用现成 resume 能力，不需要改翻译引擎。
-   - 缺点：不是 per-request 无缝轮换，只能在一个 provider 跑不动后切换；粒度较粗。
-
-4. **核心 fallback provider 层（较深侵入，最接近原生多 provider 轮换）**
-   - 在 `src/core/llm` 新增类似 `FallbackProvider` / `MultiProviderLLMClient` 的包装层。
-   - 每个请求按配置顺序尝试主 provider → 备用 provider；只有主 provider 失败/超时/429 后才走备用。
-   - 需要接入 `translate_file` / `refine_file` 及 TXT/SRT/EPUB/DOCX 各管线的 `prompt_options`、checkpoint、日志、成本记录。
-   - 优点：真正自动、按 chunk 切换；适合作为正式全书测试的主路径。
-   - 缺点：改动面大，必须处理各 provider 的模型名、endpoint、key、thinking 参数差异，以及与 resume 的交互。
-
-5. **Provider pool 抽象（可配合 4 使用）**
-   - 在现有 `KeyPool` 基础上抽象出“provider 条目池”：每个条目 = provider + model + api_key(s) + endpoint + 优先级/后备语义。
-   - 支持免费优先、付费兜底、同 provider 多 key 轮换、跨 provider 有序 fallback 等策略。
-   - 作为方案 4 的内部实现基础，可让配置更统一。
-
-倾向路线：
-
-- [ ] 短期/MVP：优先评估/实施方案 2（OpenAI-compatible 路由池），因为它最接近当前单 provider key 轮换，能覆盖 DeepSeek/SiliconFlow/OpenRouter/OpenAI paid 等常用付费/备用 API。
-- [ ] 若短期不想改基座，可先用方案 3（脚本自动 resume）验证“DeepSeek 为主 + 付费 API 兜底”的完整链路；它不是最终形态，但能先跑通。
-- [ ] 中期：若需要非 OpenAI-compatible provider（如 Gemini/Poe）参与，或需要更无缝的按请求 fallback，再实施方案 4 + 5。
-- [ ] 方案 1 可作为不依赖基座代码的备选，但不如 2/4 贴近当前 CLI 工作流。
 
 **MVP 闭环 (主线)**
 - [ ] 选一本真实书 (txt, 10-20 章) 跑正式 MVP: 阶段 1 建草稿 -> **人工核查** glossary -> 阶段 2 `--glossary` 翻译 -> `qa/qa_checks.py` 跑确定性 QA -> 用户抽 3 章精读验收.
@@ -182,7 +170,6 @@ Terragen/
 - [ ] 硅基流动对照 (输出价更低, 需 SF key).
 
 **后置扩展**
-- [ ] 系列 (多本书): 跨书术语库 (单文件 JSON, 大了迁 SQLite) - 新书以系列库做 seed, 只增量提取, merge 新别名, 跨书冲突检测, 跨书 QA; schema 已预留 `first_seen_book`/`lock_level`.
 - [ ] EPUB 阶段: 输出 XHTML XML 合规自检 (spine 逐个 `etree.fromstring`), 嵌套行内标签漏译检查, zip 解压路径穿越校验, 验证 OPF `dc:language` 输出 zh. EPUB 管线是 upstream 高频改动区, 改动前先 rebase.
 - [ ] QA 未译英文检测按源语种参数化 (当前仅 EN->ZH).
 
