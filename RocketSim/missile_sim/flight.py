@@ -22,6 +22,7 @@ from typing import Callable
 import numpy as np
 from scipy.integrate import solve_ivp  # type: ignore[import-untyped]
 
+from .aerodynamics import AerodynamicModel
 from .atmosphere import AtmosphereUSSA76
 from .constants import EARTH_MU_SI, EARTH_RADIUS_TRAJ_M, STANDARD_GRAVITY_M_S2
 from .steering import ClimbSchedule, PitchOverSchedule
@@ -259,6 +260,40 @@ IDX_MASS: int = 4
 ScheduleLike = ClimbSchedule | PitchOverSchedule
 
 
+def resolve_lift_command(
+    n_g: float,
+    q_pa: float,
+    s_ref_m2: float,
+    mass_kg: float,
+    aero: AerodynamicModel,
+    accel_cap_g: float,
+) -> tuple[float, float, bool]:
+    """把法向过载指令 (g, 带符号) 解析为可达法向加速度 (m/s^2).
+
+    返回 (alpha_eff, a_n, saturated): 攻角按 需求/攻角上限/法向 g 上限
+    三重限幅; 饱和表示指令超出物理能力, 轨迹按可达值继续.
+    """
+    if not aero.lift_enabled:
+        raise ValueError("升力模型未启用, 无法解析升力指令")
+    if n_g == 0.0 or q_pa <= 0.0:
+        return 0.0, 0.0, False
+    sign = 1.0 if n_g > 0.0 else -1.0
+    mag = abs(n_g)
+    s_ref = s_ref_m2
+    cl_demand = mag * mass_kg * STANDARD_GRAVITY_M_S2 / (q_pa * s_ref)
+    alpha_max = min(aero.alpha_max_lift_rad, math.pi / 2.0)
+    alpha_cap_g = (
+        accel_cap_g * mass_kg * STANDARD_GRAVITY_M_S2
+        / (q_pa * s_ref * aero.cl_alpha_1_rad)
+    )
+    alpha_req = cl_demand / aero.cl_alpha_1_rad
+    alpha_eff = min(alpha_req, alpha_max, alpha_cap_g)
+    saturated = alpha_eff < alpha_req - 1e-12
+    cl = aero.lift_coefficient(alpha_eff)
+    a_n = sign * (q_pa * s_ref * cl) / mass_kg
+    return alpha_eff, a_n, saturated
+
+
 def _powered_rhs(
     t: float,
     y: np.ndarray,
@@ -325,27 +360,23 @@ def _powered_rhs(
         if guidance is not None and aero.lift_enabled:
             # 指令时间轴: 有助推时相对关机, 无助推 (纯滑翔测试) 从 0 起算.
             t_base = missile.motor.burn_rate.burn_time_s if enable_thrust else 0.0
-            n_g = guidance.load_factor_g(t - t_base)
-            if n_g > 0.0 and q_pa >= guidance.q_min_pa:
-                # 需求升力系数 -> 攻角, 受 攻角上限/气动 g 上限 双重限幅.
+            n_g = guidance.command(
+                t - t_base, gamma, v, r, mu, q_pa
+            )
+            if n_g != 0.0 and q_pa >= guidance.q_min_pa:
                 s_ref = missile.geometry.reference_area_m2
-                cl_demand = n_g * m * STANDARD_GRAVITY_M_S2 / (q_pa * s_ref)
-                alpha_max = min(aero.alpha_max_lift_rad, math.pi / 2.0)
-                alpha_cap_g = (
-                    guidance.accel_cap_g * m * STANDARD_GRAVITY_M_S2
-                    / (q_pa * s_ref * aero.cl_alpha_1_rad)
+                alpha_eff, a_lift, _sat = resolve_lift_command(
+                    n_g, q_pa, s_ref, m, aero, guidance.accel_cap_g
                 )
-                alpha_eff = min(cl_demand / aero.cl_alpha_1_rad, alpha_max, alpha_cap_g)
                 cl = aero.lift_coefficient(alpha_eff)
-                lift = q_pa * s_ref * cl
-                lift_normal_accel = lift / m
                 # 诱导阻力加入总阻力.
                 cd = cd + aero.induced_drag_coefficient(cl)
                 drag = (
                     0.5 * atmo.density_kg_m3 * v * v
                     * missile.geometry.reference_area_m2 * cd
                 )
-                normal_accel = lift_normal_accel
+                normal_accel = a_lift
+                lift_normal_accel = a_lift
     thrust_axial = thrust * math.cos(achieved_delta) / m
     return np.array(
         [
@@ -518,6 +549,7 @@ __all__ = [
     "free_flight_rhs",
     "impact_event_spec",
     "impact_ground_range_m",
+    "resolve_lift_command",
     "simulate_free_flight",
     "simulate_powered_flight",
 ]

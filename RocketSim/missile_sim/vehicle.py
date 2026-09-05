@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from .aerodynamics import AerodynamicModel, BodyGeometry
 from .propulsion import Motor
-from .steering import PiecewiseNormalGuidance, SteeringAuthority
+from .steering import EquilibriumGlideGuidance, PiecewiseNormalGuidance, SteeringAuthority
 
 
 class Missile:
@@ -28,7 +28,7 @@ class Missile:
         geometry: BodyGeometry,
         aero_model: AerodynamicModel | None = None,
         steering_authority: SteeringAuthority | None = None,
-        post_boost_guidance: PiecewiseNormalGuidance | None = None,
+        post_boost_guidance: PiecewiseNormalGuidance | EquilibriumGlideGuidance | None = None,
     ) -> None:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("name 必须为非空字符串")
@@ -42,9 +42,9 @@ class Missile:
         ):
             raise TypeError("steering_authority 必须为 SteeringAuthority")
         if post_boost_guidance is not None and not isinstance(
-            post_boost_guidance, PiecewiseNormalGuidance
+            post_boost_guidance, (PiecewiseNormalGuidance, EquilibriumGlideGuidance)
         ):
-            raise TypeError("post_boost_guidance 必须为 PiecewiseNormalGuidance")
+            raise TypeError("post_boost_guidance 类型不受支持")
         self.name = name
         self.motor = motor
         self.geometry = geometry

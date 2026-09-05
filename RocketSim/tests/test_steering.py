@@ -123,3 +123,28 @@ def test_command_alpha_bridges_after_thrust_cap() -> None:
     assert cmd.delta_rad == pytest.approx(math.radians(22.0))
     assert cmd.alpha_rad == pytest.approx(math.radians(3.0))
     assert not cmd.saturated
+
+
+def test_equilibrium_glide_guidance() -> None:
+    from missile_sim.steering import EquilibriumGlideGuidance
+    g = EquilibriumGlideGuidance(gamma_cmd_rad=math.radians(-2.0), gain_1_s=1.0,
+                                 v_exit_m_s=750.0, q_min_pa=2000.0, accel_cap_g=5.0)
+    mu = 3.986004418e14
+    r = 6.45e6
+    # 在指令角上: 需求 ≈ (g - v^2/r)/g0, 为正 (需升力维持缓降).
+    n = g.command(100.0, math.radians(-2.0), 2000.0, r, mu, 1.0e5)
+    assert n == pytest.approx(
+        (mu / r**2 - 2000.0**2 / r) * math.cos(math.radians(-2.0)) / 9.80665,
+        rel=1e-6,
+    )
+    # 低于退出速度: 纯弹道.
+    assert g.command(100.0, math.radians(-2.0), 600.0, r, mu, 1.0e5) == 0.0
+    # 动压不足: 纯弹道.
+    assert g.command(100.0, math.radians(-2.0), 2000.0, r, mu, 100.0) == 0.0
+    # 航迹角过陡 (gamma 更负): 反馈项加大向上指令.
+    n_steeper = g.command(100.0, math.radians(-5.0), 2000.0, r, mu, 1.0e5)
+    assert n_steeper > n
+    with pytest.raises(ValueError):
+        EquilibriumGlideGuidance(gamma_cmd_rad=math.radians(5.0), gain_1_s=1.0, v_exit_m_s=800.0)
+    with pytest.raises(ValueError):
+        EquilibriumGlideGuidance(gamma_cmd_rad=math.radians(-2.0), gain_1_s=0.0, v_exit_m_s=800.0)

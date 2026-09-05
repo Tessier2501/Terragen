@@ -27,9 +27,18 @@ from scipy.optimize import NonlinearConstraint, differential_evolution, minimize
 from .aerodynamics import AerodynamicModel, BodyGeometry
 from .atmosphere import AtmosphereUSSA76
 from .constants import EARTH_MU_SI, EARTH_RADIUS_TRAJ_M, STANDARD_GRAVITY_M_S2
-from .flight import FlightResult, ScheduleLike, simulate_powered_flight
+from .flight import (
+    FlightResult,
+    ScheduleLike,
+    resolve_lift_command,
+    simulate_powered_flight,
+)
 from .propulsion import Motor, TwoSegmentBurnRate
-from .steering import ClimbSchedule, PiecewiseNormalGuidance, PitchOverSchedule
+from .steering import (
+    ClimbSchedule,
+    EquilibriumGlideGuidance,
+    PitchOverSchedule,
+)
 from .vehicle import Missile
 
 # --- 共享占位弹体与环境 (与 PLAN 基线一致) ---
@@ -110,12 +119,13 @@ GLB_BOUNDS: tuple[tuple[float, float], ...] = (
 )
 GLB_X0: np.ndarray = np.array([4.0, 1.0, 0.5, 2.0, 3.0])
 
-# 关机后滑翔指令参数 (追加在平台参数后): (n1_g, t1_s, n2_g, dur_s).
-_GUIDANCE_NAMES: tuple[str, ...] = ("n1_g", "t1_s", "n2_g", "dur_s")
+# 关机后平衡滑翔指令参数 (v2, 追加在平台参数后):
+#   gamma_cmd_deg (保角, -6..-0.2 度), gain_1_s (反馈增益), v_exit_m_s (退出速度).
+_GUIDANCE_NAMES: tuple[str, ...] = ("gamma_cmd_deg", "gain_1_s", "v_exit_m_s")
 _GUIDANCE_BOUNDS: tuple[tuple[float, float], ...] = (
-    (0.0, 5.0), (0.0, 300.0), (0.0, 5.0), (0.0, 300.0)
+    (-6.0, -0.2), (0.05, 2.0), (750.0, 1500.0)
 )
-_GUIDANCE_X0: np.ndarray = np.array([0.0, 120.0, 0.0, 0.0])  # 默认纯弹道.
+_GUIDANCE_X0: np.ndarray = np.array([-2.0, 1.0, 1000.0])  # 默认接近纯弹道.
 
 GLB_NAMES_LIFT: tuple[str, ...] = GLB_NAMES + _GUIDANCE_NAMES
 GLB_BOUNDS_LIFT: tuple[tuple[float, float], ...] = GLB_BOUNDS + _GUIDANCE_BOUNDS
@@ -238,7 +248,7 @@ def make_steering_only_spec(
 
 def _lift_make_missile(
     name: str, m_dot_first: float, m_dot_second: float, tau: float,
-    guidance: PiecewiseNormalGuidance | None,
+    guidance: EquilibriumGlideGuidance | None,
 ) -> Missile:
     """升力模式弹体: 启用升力气动并挂载关机后滑翔指令."""
     burn = TwoSegmentBurnRate(
@@ -260,9 +270,11 @@ def _lift_make_missile(
     )
 
 
-def _guidance_tail(x: np.ndarray) -> PiecewiseNormalGuidance:
-    n1, t1, n2, dur = (float(v) for v in x[-4:])
-    return PiecewiseNormalGuidance(n1_g=n1, t1_s=t1, n2_g=n2, dur_s=dur)
+def _guidance_tail(x: np.ndarray) -> EquilibriumGlideGuidance:
+    gamma_deg, gain, v_exit = (float(v) for v in x[-3:])
+    return EquilibriumGlideGuidance(
+        gamma_cmd_rad=math.radians(gamma_deg), gain_1_s=gain, v_exit_m_s=v_exit
+    )
 
 
 def _build_glb_lift(x: np.ndarray) -> tuple[Missile, PitchOverSchedule]:
@@ -405,26 +417,29 @@ def compute_metrics(
     guidance = missile.post_boost_guidance
     aero = missile.aero_model
     if guidance is not None and aero.lift_enabled:
+        # 指令时间轴: 有过关机事件则相对关机, 纯滑翔则从 0 起算.
+        t_base = burn_time if "burnout" in result.events else 0.0
         for i in range(len(times)):
             if thrust_arr[i] > 0.0:
                 continue
-            n_g = guidance.load_factor_g(float(times[i]) - burn_time)
+            n_g = guidance.command(
+                float(times[i]) - t_base,
+                float(gamma[i]),
+                float(v[i]),
+                float(r[i]),
+                EARTH_MU_SI,
+                float(q[i]),
+            )
             qq = float(q[i])
-            if n_g <= 0.0 or qq < guidance.q_min_pa:
+            if n_g == 0.0 or qq < guidance.q_min_pa:
                 continue
             lift_active[i] = True
             s_ref = missile.geometry.reference_area_m2
-            cl_demand = n_g * m[i] * _G0 / (qq * s_ref)
-            alpha_req = cl_demand / aero.cl_alpha_1_rad
-            alpha_max = min(aero.alpha_max_lift_rad, math.pi / 2.0)
-            alpha_cap = (
-                guidance.accel_cap_g * m[i] * _G0
-                / (qq * s_ref * aero.cl_alpha_1_rad)
+            _a_eff, _a_n, sat = resolve_lift_command(
+                n_g, qq, s_ref, m[i], aero, guidance.accel_cap_g
             )
-            alpha_eff = min(alpha_req, alpha_max, alpha_cap)
-            lift_sat[i] = alpha_eff < alpha_req - 1e-12
-            cl = aero.lift_coefficient(alpha_eff)
-            glide_g[i] = qq * s_ref * cl / (m[i] * _G0)
+            lift_sat[i] = sat
+            glide_g[i] = abs(_a_n) / _G0
 
     axial_accel_g = np.abs(thrust_arr - drag_arr) / m / _G0
     boost_mask = times <= burn_time

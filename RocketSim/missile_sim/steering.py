@@ -128,6 +128,74 @@ class PiecewiseNormalGuidance:
             return self.n2_g
         return 0.0
 
+    def command(
+        self,
+        t_since_burnout_s: float,
+        gamma_rad: float = 0.0,
+        v_m_s: float = 0.0,
+        r_m: float = 0.0,
+        mu: float = 0.0,
+        q_pa: float = 0.0,
+    ) -> float:
+        """统一指令接口 (v1 只依赖时间, 忽略飞行状态)."""
+        return self.load_factor_g(t_since_burnout_s)
+
+
+@dataclass(frozen=True)
+class EquilibriumGlideGuidance:
+    """v2: 平衡滑翔走廊制导律 (PLAN 11b 第二版).
+
+    关机后再入进入大气层 (q >= q_min) 且速度高于 v_exit 时, 用 P 反馈
+    把航迹角保持在小负值 gamma_cmd 附近 (平衡滑翔): 指令法向过载
+        n_cmd = [(g - v^2/r) cos(gamma) + K * (gamma_cmd - gamma)] / g0
+    低速 (v <= v_exit) 放弃升力纯弹道俯冲 (为命中速度保留余量).
+    指令经攻角实现并受 攻角/动压/法向 g 上限 约束, 超出按实际能力.
+    """
+
+    gamma_cmd_rad: float
+    gain_1_s: float
+    v_exit_m_s: float
+    q_min_pa: float = 2000.0
+    accel_cap_g: float = 5.0
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("gamma_cmd_rad", self.gamma_cmd_rad),
+            ("gain_1_s", self.gain_1_s),
+            ("v_exit_m_s", self.v_exit_m_s),
+            ("q_min_pa", self.q_min_pa),
+            ("accel_cap_g", self.accel_cap_g),
+        ):
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise TypeError(f"{name} 必须为有限数值")
+        if not (-math.radians(10.0) <= self.gamma_cmd_rad <= 0.0):
+            raise ValueError("gamma_cmd_rad 必须在 [-10 度, 0] 内 (缓降或平飞)")
+        if self.gain_1_s <= 0.0:
+            raise ValueError("gain_1_s 必须为正数")
+        if self.v_exit_m_s <= 0.0 or self.q_min_pa < 0.0 or self.accel_cap_g <= 0.0:
+            raise ValueError("v_exit/q_min/accel_cap 必须为正数")
+
+    def command(
+        self,
+        t_since_burnout_s: float,
+        gamma_rad: float,
+        v_m_s: float,
+        r_m: float,
+        mu: float,
+        q_pa: float,
+    ) -> float:
+        """平衡滑翔指令法向过载 (g, 向上为正)."""
+        if t_since_burnout_s < 0.0:
+            raise ValueError(f"t_since_burnout_s 必须非负, 收到 {t_since_burnout_s!r}")
+        if v_m_s <= self.v_exit_m_s or q_pa < self.q_min_pa:
+            return 0.0
+        g_local = mu / (r_m * r_m)
+        gamma_err = self.gamma_cmd_rad - float(gamma_rad)
+        a_n = (g_local - v_m_s * v_m_s / r_m) * math.cos(gamma_rad) + (
+            self.gain_1_s * gamma_err
+        )
+        return a_n / 9.80665
+
 
 @dataclass(frozen=True)
 class NormalAccelBudget:
@@ -283,6 +351,7 @@ class SteeringAuthority:
 
 __all__ = [
     "ClimbSchedule",
+    "EquilibriumGlideGuidance",
     "NormalAccelBudget",
     "PiecewiseNormalGuidance",
     "PitchOverSchedule",
