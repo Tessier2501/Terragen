@@ -13,3 +13,7 @@ __pycache__/
 *:Zone.Identifier
 .DS_Store
 Thumbs.db
+
+# Local tooling runtime state (dsh web job store / test caches)
+data/
+.pytest_cache/
