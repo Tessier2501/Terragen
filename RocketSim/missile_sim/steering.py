@@ -1,13 +1,15 @@
-"""转向架构: TVC/气动舵法向过载预算与助推程序角族 (M2).
+"""转向架构: TVC/气动舵指令分配与助推程序角族 (M2, M3 强化).
 
 物理要点 (PLAN 3.5):
-- 气动舵法向力 N = q * S * C_N_alpha * alpha, q = 0.5*rho*v^2;
+- 气动舵/弹体法向力 N = q * S * C_N_alpha * alpha, q = 0.5*rho*v^2;
   发射瞬间 v=0 -> q=0, 高空低密度 q 亦趋零, 舵效随高度/速度退化;
-- 可用法向过载 = TVC 项 + 舵项; 分配策略: 优先舵, 不足由 TVC 补;
-- 弹道方程以推力方向角 phi 为控制, 本模块只计算可用性与程序角,
-  可行性判据在 M3 寻优时启用.
+- 指令分配 (M3): TVC 摆角优先 (任何高度/动压可用), 攻角补足 (舵
+  法向力依赖 q), 超出总能力即饱和; 轨迹按饱和后的实际法向加速度
+  积分, 不产生虚构过载;
+- 弹道方程以"期望推力方向角 phi"为控制, 经本模块分配为物理可实现
+  的 (delta, alpha) 与实际法向加速度.
 
-助推程序角族 (M2 基线, M3 会扩展参数化):
+助推程序角族:
 - PitchOverSchedule: 垂直发射用 - 垂直保持 t_hold 后以恒定角速度
   下压 (phi = min(gamma, program)), 转完后自然重力转弯;
 - ClimbSchedule: 空射平飞拉起到目标航迹角 (phi = max(gamma, target)),
@@ -23,10 +25,10 @@ _HALF_PI = math.pi / 2.0
 
 
 class _ScheduleBase:
-    """程序角基类: angle(t, gamma) -> 推力方向角 phi (当地水平上方)."""
+    """程序角基类: angle(t, gamma) -> 期望推力方向角 phi (当地水平上方)."""
 
     def angle(self, t_s: float, gamma_rad: float) -> float:
-        """返回 t 时刻, 当前航迹角 gamma 下的推力方向角 (rad)."""
+        """返回 t 时刻, 当前航迹角 gamma 下的期望推力方向角 (rad)."""
         raise NotImplementedError
 
     def _validate_time_gamma(self, t_s: float, gamma_rad: float) -> None:
@@ -39,7 +41,7 @@ class _ScheduleBase:
 class PitchOverSchedule(_ScheduleBase):
     """垂直起飞后程序下压: 保持垂直 t_hold_s, 之后以 turn_rate 下压.
 
-    程序角 program(t) = pi/2 - turn_rate * max(0, t - t_hold), 实际
+    程序角 program(t) = pi/2 - turn_rate * max(0, t - t_hold), 期望
     推力方向角 phi = min(gamma, program): 程序低于航迹角时把速度矢量
     往下压, 程序高于航迹角时保持推力沿速度 (重力转弯).
     """
@@ -64,7 +66,7 @@ class PitchOverSchedule(_ScheduleBase):
 
 
 class ClimbSchedule(_ScheduleBase):
-    """空射平飞拉起: 推力方向固定在 target 角直到航迹角追上, 随后重力转弯.
+    """空射平飞拉起: 期望推力方向固定在 target 角直到航迹角追上.
 
     phi = max(gamma, target): 从水平 (gamma~0) 拉到 target, 追上后
     推力沿速度方向 (不再主动改变航迹角).
@@ -90,19 +92,29 @@ class NormalAccelBudget:
     fins_m_s2: float  # 气动舵贡献 (q 依赖, 高空/低速趋零)
 
 
+@dataclass(frozen=True)
+class SteeringCommand:
+    """一次转向指令的物理分配结果 (TVC 优先, 舵补足, 超出即饱和)."""
+
+    delta_rad: float            # TVC 摆角 (有符号, |delta| <= gimbal_max)
+    alpha_rad: float            # 攻角 (有符号, |alpha| <= alpha_max)
+    normal_accel_m_s2: float    # 实际产生的法向加速度
+    saturated: bool             # 指令超出 TVC+舵 能力时为 True
+
+
 class SteeringAuthority:
-    """转向能力预算: 可用法向过载 = TVC + 舵 (q 依赖).
+    """转向能力与指令分配.
 
     参数 (PLAN 基线, 占位可调):
-        gimbal_max_rad: TVC 最大摆角 (默认 7 度).
-        fin_lift_slope_1_rad: 舵面法向力斜率 C_N_alpha (默认 3 /rad).
+        gimbal_max_rad: TVC 最大摆角 (默认 12 度).
+        fin_lift_slope_1_rad: 舵面法向力斜率 C_N_alpha (默认 8 /rad).
         alpha_max_rad: 最大攻角 (默认 8 度).
     """
 
     def __init__(
         self,
-        gimbal_max_rad: float = math.radians(7.0),
-        fin_lift_slope_1_rad: float = 3.0,
+        gimbal_max_rad: float = math.radians(12.0),
+        fin_lift_slope_1_rad: float = 8.0,
         alpha_max_rad: float = math.radians(8.0),
     ) -> None:
         params = {
@@ -154,10 +166,60 @@ class SteeringAuthority:
         ) / mass_kg
         return NormalAccelBudget(tvc_m_s2=tvc, fins_m_s2=fins)
 
+    def command(
+        self,
+        phi_desired_rad: float,
+        gamma_rad: float,
+        thrust_n: float,
+        mass_kg: float,
+        dynamic_pressure_pa: float,
+        reference_area_m2: float,
+    ) -> SteeringCommand:
+        """把期望推力方向角转为物理可实现指令 (TVC 优先, 攻角补足).
+
+        分配: 摆角先承担期望偏转 (TVC 与高度/动压无关), 攻角补足
+        (舵法向力依赖动压 q), 仍不足则饱和. 饱和时轨迹按实际产生
+        的法向加速度继续, 不虚构过载.
+        """
+        for name, value in (
+            ("phi_desired_rad", phi_desired_rad),
+            ("gamma_rad", gamma_rad),
+            ("thrust_n", thrust_n),
+            ("mass_kg", mass_kg),
+            ("dynamic_pressure_pa", dynamic_pressure_pa),
+            ("reference_area_m2", reference_area_m2),
+        ):
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise TypeError(f"{name} 必须为有限数值")
+        if mass_kg <= 0.0 or reference_area_m2 <= 0.0:
+            raise ValueError("mass_kg 与 reference_area_m2 必须为正")
+        if thrust_n < 0.0 or dynamic_pressure_pa < 0.0:
+            raise ValueError("thrust_n 与 dynamic_pressure_pa 必须非负")
+        delta_desired = float(phi_desired_rad) - float(gamma_rad)
+        delta = max(-self.gimbal_max_rad, min(self.gimbal_max_rad, delta_desired))
+        remainder = delta_desired - delta
+        alpha = max(-self.alpha_max_rad, min(self.alpha_max_rad, remainder))
+        saturated = abs(remainder) > self.alpha_max_rad + 1e-12
+        a_n = (
+            (thrust_n / mass_kg) * math.sin(delta)
+            + dynamic_pressure_pa
+            * reference_area_m2
+            * self.fin_lift_slope_1_rad
+            * alpha
+            / mass_kg
+        )
+        return SteeringCommand(
+            delta_rad=delta,
+            alpha_rad=alpha,
+            normal_accel_m_s2=a_n,
+            saturated=saturated,
+        )
+
 
 __all__ = [
     "ClimbSchedule",
     "NormalAccelBudget",
     "PitchOverSchedule",
     "SteeringAuthority",
+    "SteeringCommand",
 ]

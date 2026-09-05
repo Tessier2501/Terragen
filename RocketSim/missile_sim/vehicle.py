@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from .aerodynamics import AerodynamicModel, BodyGeometry
 from .propulsion import Motor
+from .steering import SteeringAuthority
 
 
 class Missile:
@@ -17,6 +18,7 @@ class Missile:
         motor: 发动机 (燃烧形状 + 比冲 + 质量预算).
         geometry: 弹体几何.
         aero_model: 气动模型; 缺省时按几何与默认底阻系数构造.
+        steering_authority: 转向能力; 缺省使用默认 TVC/舵 参数.
     """
 
     def __init__(
@@ -25,6 +27,7 @@ class Missile:
         motor: Motor,
         geometry: BodyGeometry,
         aero_model: AerodynamicModel | None = None,
+        steering_authority: SteeringAuthority | None = None,
     ) -> None:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("name 必须为非空字符串")
@@ -33,11 +36,20 @@ class Missile:
                 raise TypeError(f"{label} 类型错误")
         if aero_model is not None and not isinstance(aero_model, AerodynamicModel):
             raise TypeError("aero_model 必须为 AerodynamicModel")
+        if steering_authority is not None and not isinstance(
+            steering_authority, SteeringAuthority
+        ):
+            raise TypeError("steering_authority 必须为 SteeringAuthority")
         self.name = name
         self.motor = motor
         self.geometry = geometry
         self.aero_model: AerodynamicModel = (
             aero_model if aero_model is not None else AerodynamicModel(geometry)
+        )
+        self.steering_authority: SteeringAuthority = (
+            steering_authority
+            if steering_authority is not None
+            else SteeringAuthority()
         )
 
     @property

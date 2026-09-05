@@ -204,6 +204,63 @@ class TwoLevelBurnRate(BurnRateBase):
         )
 
 
+class TwoSegmentBurnRate(BurnRateBase):
+    """两段级燃烧率 (方向可逆): 两段流量各自恒定, 首段烧掉指定质量后切换.
+
+    允许第二段流量高于第一段 (增面, 对应内孔管状渐进) 或低于第一段
+    (减面, 对应助推-续航). 是 M3 主参数族 (T/W0, r, tau) 的载体.
+    """
+
+    def __init__(
+        self,
+        propellant_mass_kg: float,
+        mass_flow_first_kg_s: float,
+        mass_flow_second_kg_s: float,
+        first_segment_mass_kg: float,
+    ) -> None:
+        self.mass_flow_first_kg_s = mass_flow_first_kg_s
+        self.mass_flow_second_kg_s = mass_flow_second_kg_s
+        self.first_segment_mass_kg = first_segment_mass_kg
+        super().__init__(propellant_mass_kg)
+
+    def _validate_shape(self) -> None:
+        for name, value in (
+            ("mass_flow_first_kg_s", self.mass_flow_first_kg_s),
+            ("mass_flow_second_kg_s", self.mass_flow_second_kg_s),
+            ("first_segment_mass_kg", self.first_segment_mass_kg),
+        ):
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise TypeError(f"{name} 必须为有限数值")
+            if value <= 0.0:
+                raise ValueError(f"{name} 必须为正数, 收到 {value!r}")
+        if self.first_segment_mass_kg >= self.propellant_mass_kg:
+            raise ValueError("第一段质量必须小于推进剂总质量")
+        self._first_time_s = self.first_segment_mass_kg / self.mass_flow_first_kg_s
+        self._second_mass_kg = self.propellant_mass_kg - self.first_segment_mass_kg
+
+    def _compute_burn_time(self) -> float:
+        return self._first_time_s + self._second_mass_kg / self.mass_flow_second_kg_s
+
+    def mass_flow_rate(self, t_s: float) -> float:
+        if t_s < 0.0:
+            raise ValueError(f"时间必须非负, 收到 {t_s!r}")
+        if t_s >= self.burn_time_s:
+            return 0.0
+        if t_s < self._first_time_s:
+            return self.mass_flow_first_kg_s
+        return self.mass_flow_second_kg_s
+
+    def propellant_consumed(self, t_s: float) -> float:
+        if t_s < 0.0:
+            raise ValueError(f"时间必须非负, 收到 {t_s!r}")
+        t = min(t_s, self.burn_time_s)
+        if t <= self._first_time_s:
+            return self.mass_flow_first_kg_s * t
+        return self.first_segment_mass_kg + self.mass_flow_second_kg_s * (
+            t - self._first_time_s
+        )
+
+
 @dataclass
 class Motor:
     """固体发动机装配: 燃烧率形状 + 比冲背压模型 + 质量预算.
@@ -264,5 +321,6 @@ __all__ = [
     "Motor",
     "RegressiveLinearBurnRate",
     "TwoLevelBurnRate",
+    "TwoSegmentBurnRate",
     "specific_impulse_at_pressure",
 ]

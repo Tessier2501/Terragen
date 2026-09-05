@@ -38,7 +38,7 @@ def test_pitch_over_schedule() -> None:
 def test_pitch_over_clamps_at_level() -> None:
     s = PitchOverSchedule(hold_time_s=0.0, turn_rate_rad_s=math.radians(30.0))
     # 长时间下压不越过水平面.
-    assert s.angle(60.0, math.radians(10.0)) == pytest.approx(0.0)
+    assert s.angle(60.0, math.radians(12.0)) == pytest.approx(0.0)
 
 
 def test_steering_authority_budget() -> None:
@@ -48,13 +48,13 @@ def test_steering_authority_budget() -> None:
     s_ref = 0.636
     budget = auth.available_normal_accel(thrust, mass, 100_000.0, s_ref)
     assert isinstance(budget, NormalAccelBudget)
-    # TVC: (200000/4000) * sin(7 度).
+    # TVC: (200000/4000) * sin(12 度).
     assert budget.tvc_m_s2 == pytest.approx(
-        (thrust / mass) * math.sin(math.radians(7.0))
+        (thrust / mass) * math.sin(math.radians(12.0))
     )
     # 舵项 = q * S * C_N_alpha * alpha_max (小攻角线性, alpha 用弧度).
     assert budget.fins_m_s2 == pytest.approx(
-        100_000.0 * s_ref * 3.0 * math.radians(8.0) / mass
+        100_000.0 * s_ref * 8.0 * math.radians(8.0) / mass
     )
 
 
@@ -83,3 +83,43 @@ def test_invalid_inputs() -> None:
         SteeringAuthority(alpha_max_rad=math.pi)
     with pytest.raises(TypeError):
         SteeringAuthority(gimbal_max_rad="x")  # type: ignore[arg-type]
+
+
+def test_command_allocation_tvc_first_and_saturation() -> None:
+    auth = SteeringAuthority()
+    thrust = 200_000.0
+    mass = 4000.0
+    s_ref = 0.636
+    q_pa = 50_000.0
+    # 小偏转: 全部由 TVC 承担, 无攻角, 不饱和.
+    cmd = auth.command(0.1, 0.0, thrust, mass, q_pa, s_ref)
+    assert cmd.delta_rad == pytest.approx(0.1)
+    assert cmd.alpha_rad == pytest.approx(0.0)
+    assert not cmd.saturated
+    assert cmd.normal_accel_m_s2 == pytest.approx(
+        (thrust / mass) * math.sin(0.1)
+    )
+    # 大偏转: 摆角 10 度封顶, 攻角 8 度封顶, 饱和.
+    cmd2 = auth.command(math.radians(40.0), 0.0, thrust, mass, q_pa, s_ref)
+    assert cmd2.delta_rad == pytest.approx(math.radians(12.0))
+    assert cmd2.alpha_rad == pytest.approx(math.radians(8.0))
+    assert cmd2.saturated
+    expected_an = (
+        (thrust / mass) * math.sin(math.radians(12.0))
+        + q_pa * s_ref * 8.0 * math.radians(8.0) / mass
+    )
+    assert cmd2.normal_accel_m_s2 == pytest.approx(expected_an)
+    # 负偏转对称.
+    cmd3 = auth.command(-math.radians(40.0), 0.0, thrust, mass, q_pa, s_ref)
+    assert cmd3.delta_rad == pytest.approx(-math.radians(12.0))
+    assert cmd3.alpha_rad == pytest.approx(-math.radians(8.0))
+    assert cmd3.normal_accel_m_s2 == pytest.approx(-expected_an)
+
+
+def test_command_alpha_bridges_after_gimbal_limit() -> None:
+    auth = SteeringAuthority()
+    # 期望偏转 15 度: 摆角 10 + 攻角 5, 不饱和.
+    cmd = auth.command(math.radians(15.0), 0.0, 200_000.0, 4000.0, 0.0, 0.636)
+    assert cmd.delta_rad == pytest.approx(math.radians(12.0))
+    assert cmd.alpha_rad == pytest.approx(math.radians(3.0))
+    assert not cmd.saturated

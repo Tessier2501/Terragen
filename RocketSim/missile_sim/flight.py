@@ -296,14 +296,31 @@ def _powered_rhs(
     )
     phi = schedule.angle(t, gamma)
     g_acc = mu / (r * r)
-    thrust_axial = thrust * math.cos(phi - gamma) / m
-    thrust_normal = thrust * math.sin(phi - gamma) / m
+    # 转向能力饱和: 程序角经 TVC/舵分配为物理可实现指令, 轨迹按
+    # 实际产生的法向加速度转弯 (低动压下无法瞬间大角度指向).
+    # 关机 (推力=0) 后无姿态控制能力, 弹道必须纯弹道: 舵面法向力
+    # 不得继续作用, 否则会在再入段虚构升力导致跳跃弹道.
+    if thrust > 0.0:
+        cmd = missile.steering_authority.command(
+            phi,
+            gamma,
+            thrust,
+            m,
+            0.5 * atmo.density_kg_m3 * v * v,
+            missile.geometry.reference_area_m2,
+        )
+        achieved_delta = cmd.alpha_rad + cmd.delta_rad
+        normal_accel = cmd.normal_accel_m_s2
+    else:
+        achieved_delta = 0.0
+        normal_accel = 0.0
+    thrust_axial = thrust * math.cos(achieved_delta) / m
     return np.array(
         [
             v * sin_g,
             v * cos_g / r,
             thrust_axial - drag / m - g_acc * sin_g,
-            thrust_normal / v + (v / r - g_acc / v) * cos_g,
+            normal_accel / v + (v / r - g_acc / v) * cos_g,
             -m_dot,
         ]
     )
@@ -340,11 +357,15 @@ def simulate_powered_flight(
     rtol: float = 1e-9,
     atol: float = 1e-9,
     enable_thrust: bool = True,
+    max_step_s: float = 2.0,
+    method: str = "RK45",
 ) -> FlightResult:
     """积分一条完整动力弹道: 助推 -> 关机 -> 远地点 -> 命中.
 
     事件顺序不限, 每段取最先触发的终止事件并续积 (关机 / 远地点 /
     命中). 事件后各物理量自动连续: 关机后推力与质量流失为零.
+    max_step_s 限制步长上限: 防止大步长跨过推力阶跃/事件点时 RK
+    内部节点外推发散 (实测跨关机大步长可致速度发散为负).
 
     异常:
         TypeError: 参数类型错误.
@@ -359,6 +380,7 @@ def simulate_powered_flight(
         "t_max_s": (t_max_s, lambda x: x > 0.0, "须为正数"),
         "rtol": (rtol, lambda x: x > 0.0, "须为正数"),
         "atol": (atol, lambda x: x > 0.0, "须为正数"),
+        "max_step_s": (max_step_s, lambda x: x > 0.0, "须为正数"),
     }
     for name, (value, ok, why) in params.items():
         if not isinstance(value, (int, float)) or not math.isfinite(value):
@@ -373,6 +395,8 @@ def simulate_powered_flight(
         raise TypeError("theta0_rad 必须为有限数值")
     if not isinstance(enable_thrust, bool):
         raise TypeError("enable_thrust 必须为 bool")
+    if method not in ("RK45", "LSODA", "Radau", "BDF"):
+        raise ValueError(f"method 必须为 RK45/LSODA/Radau/BDF, 收到 {method!r}")
     if not isinstance(missile, Missile):
         raise TypeError("missile 必须为 Missile")
     if not isinstance(atmosphere, AtmosphereUSSA76):
@@ -388,9 +412,14 @@ def simulate_powered_flight(
             float(m0),
         ]
     )
-    pending: list[EventSpec] = [apogee_event_spec(), impact_event_spec(r_target_m)]
+    # 助推瞬态 (水平投放后短暂下倾再拉起) 会误触"远地点"事件, 因此
+    # 远地点事件推迟到关机后才挂载; 无推力 (纯滑翔) 时从起点就挂载.
+    pending: list[EventSpec] = [impact_event_spec(r_target_m)]
     if enable_thrust:
         pending.append(burnout_time_event_spec(missile.motor.burn_rate.burn_time_s))
+    else:
+        pending.append(apogee_event_spec())
+    apogee_pending_added: bool = not enable_thrust
     seg_times: list[np.ndarray] = []
     seg_states: list[np.ndarray] = []
     events_found: dict[str, EventRecord] = {}
@@ -409,6 +438,7 @@ def simulate_powered_flight(
             method="RK45",
             rtol=rtol,
             atol=atol,
+            max_step=max_step_s,
         )
         if not sol.success:
             raise RuntimeError(f"积分器失败: {sol.message}")
@@ -432,6 +462,9 @@ def simulate_powered_flight(
         if spec.name == "impact":
             break
         pending = [s for i, s in enumerate(pending) if i != fired_idx]
+        if spec.name == "burnout" and not apogee_pending_added:
+            pending.append(apogee_event_spec())
+            apogee_pending_added = True
         t_now = t_ev
         y_now = state_ev
 
