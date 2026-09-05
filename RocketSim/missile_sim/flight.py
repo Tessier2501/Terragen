@@ -45,7 +45,11 @@ def free_flight_rhs(t: float, y: np.ndarray, mu: float = EARTH_MU_SI) -> np.ndar
     v = float(y[IDX_V])
     gamma = float(y[IDX_GAMMA])
     if v <= 0.0:
-        raise ValueError(f"速度非正 (v={v:.6g} m/s), 方程奇异")
+        r_alt = r - EARTH_RADIUS_TRAJ_M
+        raise ValueError(
+            f"速度非正 (t={t:.3f} s, h={r_alt:.1f} m, v={v:.6g} m/s, "
+            f"gamma={gamma:.6g} rad), 方程奇异"
+        )
     sin_g = math.sin(gamma)
     cos_g = math.cos(gamma)
     g_acc = mu / (r * r)
@@ -270,7 +274,11 @@ def _powered_rhs(
     gamma = float(y[IDX_GAMMA])
     m = float(y[IDX_MASS])
     if v <= 0.0:
-        raise ValueError(f"速度非正 (v={v:.6g} m/s), 方程奇异")
+        r_alt = r - EARTH_RADIUS_TRAJ_M
+        raise ValueError(
+            f"速度非正 (t={t:.3f} s, h={r_alt:.1f} m, v={v:.6g} m/s, "
+            f"gamma={gamma:.6g} rad), 方程奇异"
+        )
     sin_g = math.sin(gamma)
     cos_g = math.cos(gamma)
     # 命中事件所在步的 RK 内部节点可能瞬时低于地表: 采样高度钳到 >= 0
@@ -324,22 +332,6 @@ def _powered_rhs(
             -m_dot,
         ]
     )
-
-
-def burnout_time_event_spec(burn_time_s: float) -> EventSpec:
-    """关机事件: 以燃烧时间 t 触发 (推进剂闭合后精确已知).
-
-    比质量-干重判据更稳健: 质量在关机后保持不变, 不会产生符号翻转.
-    """
-    if not isinstance(burn_time_s, (int, float)) or not math.isfinite(burn_time_s):
-        raise TypeError("burn_time_s 必须为有限数值")
-    if burn_time_s <= 0.0:
-        raise ValueError(f"burn_time_s 必须为正数, 收到 {burn_time_s!r}")
-
-    def func(t: float, y: np.ndarray) -> float:
-        return t - burn_time_s
-
-    return EventSpec(name="burnout", func=func, direction=1)
 
 
 def simulate_powered_flight(
@@ -403,39 +395,26 @@ def simulate_powered_flight(
         raise TypeError("atmosphere 必须为 AtmosphereUSSA76")
 
     m0 = missile.motor.mass(0.0)
-    y_now = np.array(
-        [
-            float(r0_m),
-            float(theta0_rad),
-            float(v0_m_s),
-            float(gamma0_rad),
-            float(m0),
-        ]
-    )
-    # 助推瞬态 (水平投放后短暂下倾再拉起) 会误触"远地点"事件, 因此
-    # 远地点事件推迟到关机后才挂载; 无推力 (纯滑翔) 时从起点就挂载.
-    pending: list[EventSpec] = [impact_event_spec(r_target_m)]
-    if enable_thrust:
-        pending.append(burnout_time_event_spec(missile.motor.burn_rate.burn_time_s))
-    else:
-        pending.append(apogee_event_spec())
-    apogee_pending_added: bool = not enable_thrust
     seg_times: list[np.ndarray] = []
     seg_states: list[np.ndarray] = []
     events_found: dict[str, EventRecord] = {}
     t_now = 0.0
+    y_now = np.array(
+        [float(r0_m), float(theta0_rad), float(v0_m_s), float(gamma0_rad), float(m0)]
+    )
 
     def rhs(t: float, y: np.ndarray) -> np.ndarray:
         return _powered_rhs(t, y, missile, atmosphere, schedule, mu, enable_thrust)
 
-    while pending and t_now < t_max_s:
-        scipy_events = [_ScipyEvent(spec) for spec in pending]
+    def integrate(t_upper_s: float, specs: list[EventSpec]) -> bool:
+        """积分一段到 t_upper 或首个终止事件; 命中事件触发返回 True."""
+        nonlocal t_now, y_now
         sol = solve_ivp(
             rhs,
-            (t_now, t_max_s),
+            (t_now, t_upper_s),
             y_now,
-            events=scipy_events,
-            method="RK45",
+            events=[_ScipyEvent(spec) for spec in specs],
+            method=method,
             rtol=rtol,
             atol=atol,
             max_step=max_step_s,
@@ -454,19 +433,43 @@ def simulate_powered_flight(
             (i for i, te in enumerate(sol.t_events) if te.size > 0), None
         )
         if fired_idx is None:
-            break
-        spec = pending[fired_idx]
+            t_now = float(sol.t[-1])
+            y_now = np.asarray(sol.y[:, -1], dtype=float)
+            return False
+        spec = specs[fired_idx]
         t_ev = float(sol.t_events[fired_idx][0])
         state_ev = np.asarray(sol.y_events[fired_idx][0], dtype=float)
         events_found[spec.name] = EventRecord(name=spec.name, time_s=t_ev, state=state_ev)
-        if spec.name == "impact":
-            break
-        pending = [s for i, s in enumerate(pending) if i != fired_idx]
-        if spec.name == "burnout" and not apogee_pending_added:
-            pending.append(apogee_event_spec())
-            apogee_pending_added = True
         t_now = t_ev
         y_now = state_ev
+        return spec.name == "impact"
+
+    burn_time = missile.motor.burn_rate.burn_time_s
+    if enable_thrust and burn_time < t_max_s:
+        # 关机用硬边界而非事件: 事件根略早于 t_burn 时, 重启后第一步会把
+        # 残留的推力阶跃吞进大步长, RK 内部外推发散 (实测负速度). 助推段
+        # 积分到精确 t_burn 后干净重启; 助推中命中属极端情形, 单独处理.
+        if not integrate(burn_time, [impact_event_spec(r_target_m)]):
+            events_found["burnout"] = EventRecord(name="burnout", time_s=t_now, state=y_now)
+            while t_now < t_max_s:
+                pending: list[EventSpec] = [
+                    s for s in (apogee_event_spec(), impact_event_spec(r_target_m))
+                    if s.name not in events_found
+                ]
+                if not pending or integrate(t_max_s, pending):
+                    break
+    elif enable_thrust:
+        # 燃烧时间超出 t_max: 全程助推, 只挂命中事件.
+        integrate(t_max_s, [impact_event_spec(r_target_m)])
+    else:
+        # 纯滑翔: 远地点与命中事件都从起点挂载.
+        while t_now < t_max_s:
+            pending = [
+                s for s in (apogee_event_spec(), impact_event_spec(r_target_m))
+                if s.name not in events_found
+            ]
+            if not pending or integrate(t_max_s, pending):
+                break
 
     if "impact" in events_found:
         message = "命中目标半径"
@@ -488,7 +491,6 @@ __all__ = [
     "EventSpec",
     "FlightResult",
     "apogee_event_spec",
-    "burnout_time_event_spec",
     "free_flight_rhs",
     "impact_event_spec",
     "impact_ground_range_m",

@@ -66,6 +66,7 @@ class FlightMetrics:
     boost_max_q_pa: float
     reentry_max_q_pa: float
     max_axial_g: float
+    max_normal_g: float
     steer_saturation_fraction: float
 
     @property
@@ -203,7 +204,7 @@ def compute_metrics(
             success=False, impact_speed_m_s=0.0, range_m=0.0, flight_time_s=0.0,
             burnout_speed_m_s=0.0, burnout_altitude_m=0.0, apogee_altitude_m=0.0,
             max_mach=0.0, boost_max_q_pa=0.0, reentry_max_q_pa=0.0,
-            max_axial_g=0.0, steer_saturation_fraction=0.0,
+            max_axial_g=0.0, max_normal_g=0.0, steer_saturation_fraction=0.0,
         )
     burn_time = missile.motor.burn_rate.burn_time_s
     times = result.times
@@ -234,6 +235,7 @@ def compute_metrics(
     thrust_arr = np.zeros_like(v)
     drag_arr = np.zeros_like(v)
     saturated = np.zeros(len(times), dtype=bool)
+    normal_g = np.zeros_like(v)
     for i in range(len(times)):
         t_i = float(times[i])
         thrust_arr[i] = missile.motor.thrust(t_i, float(p_amb[i]))
@@ -256,6 +258,7 @@ def compute_metrics(
                 missile.geometry.reference_area_m2,
             )
             saturated[i] = cmd.saturated
+            normal_g[i] = abs(cmd.normal_accel_m_s2) / _G0
 
     axial_accel_g = np.abs(thrust_arr - drag_arr) / m / _G0
     boost_mask = times <= burn_time
@@ -282,6 +285,7 @@ def compute_metrics(
         boost_max_q_pa=float(np.max(q[boost_mask])),
         reentry_max_q_pa=float(np.max(q[reentry_mask])) if np.any(reentry_mask) else 0.0,
         max_axial_g=float(np.max(axial_accel_g)),
+        max_normal_g=float(np.max(normal_g[boost_mask & (thrust_arr > 0.0)])),
         steer_saturation_fraction=sat_fraction,
     )
 
@@ -334,7 +338,7 @@ def compute_metrics_from_failure() -> FlightMetrics:
         success=False, impact_speed_m_s=0.0, range_m=0.0, flight_time_s=0.0,
         burnout_speed_m_s=0.0, burnout_altitude_m=0.0, apogee_altitude_m=0.0,
         max_mach=0.0, boost_max_q_pa=0.0, reentry_max_q_pa=0.0,
-        max_axial_g=0.0, steer_saturation_fraction=0.0,
+        max_axial_g=0.0, max_normal_g=0.0, steer_saturation_fraction=0.0,
     )
 
 
@@ -377,6 +381,7 @@ def _default_margins(metrics: FlightMetrics) -> list[Margin]:
         Margin(name="boost Max-Q", value=metrics.boost_max_q_pa, limit=250_000.0),
         Margin(name="reentry Max-Q", value=metrics.reentry_max_q_pa, limit=2_500_000.0),
         Margin(name="axial accel", value=metrics.max_axial_g, limit=25.0),
+        Margin(name="turn normal g", value=metrics.max_normal_g, limit=8.0),
         Margin(name="steering saturation frac", value=metrics.steer_saturation_fraction, limit=0.15),
     ]
 
@@ -493,6 +498,7 @@ def optimize_platform(
             "boost Max-Q": "boost_max_q_pa",
             "reentry Max-Q": "reentry_max_q_pa",
             "axial accel": "max_axial_g",
+            "turn normal g": "max_normal_g",
         }
         new_keys = [
             margin_key_map[m.name]
@@ -535,6 +541,7 @@ _EXTRA_LIMITS.update(
         "boost_max_q_pa": (lambda m: m.boost_max_q_pa, 250_000.0),
         "reentry_max_q_pa": (lambda m: m.reentry_max_q_pa, 2_500_000.0),
         "max_axial_g": (lambda m: m.max_axial_g, 25.0),
+        "max_normal_g": (lambda m: m.max_normal_g, 8.0),
     }
 )
 

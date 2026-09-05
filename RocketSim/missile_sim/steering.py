@@ -94,12 +94,16 @@ class NormalAccelBudget:
 
 @dataclass(frozen=True)
 class SteeringCommand:
-    """一次转向指令的物理分配结果 (TVC 优先, 舵补足, 超出即饱和)."""
+    """一次转向指令的物理分配结果.
 
-    delta_rad: float            # TVC 摆角 (有符号, |delta| <= gimbal_max)
+    分配顺序: TVC 摆角 -> 燃气舵 (同为推力偏转, 与高度无关) -> 攻角
+    (气动舵, 依赖动压) -> 超出总能力即饱和.
+    """
+
+    delta_rad: float            # 推力偏转角合计 (摆角+燃气舵, 有符号)
     alpha_rad: float            # 攻角 (有符号, |alpha| <= alpha_max)
     normal_accel_m_s2: float    # 实际产生的法向加速度
-    saturated: bool             # 指令超出 TVC+舵 能力时为 True
+    saturated: bool             # 指令超出总能力时为 True
 
 
 class SteeringAuthority:
@@ -107,6 +111,8 @@ class SteeringAuthority:
 
     参数 (PLAN 基线, 占位可调):
         gimbal_max_rad: TVC 最大摆角 (默认 12 度).
+        jet_vane_max_rad: 燃气舵额外偏转能力 (默认 10 度; 喷流舵,
+            低动压/高空仍有效, 受材料与烧蚀限制见监测约束).
         fin_lift_slope_1_rad: 舵面法向力斜率 C_N_alpha (默认 8 /rad).
         alpha_max_rad: 最大攻角 (默认 8 度).
     """
@@ -114,11 +120,13 @@ class SteeringAuthority:
     def __init__(
         self,
         gimbal_max_rad: float = math.radians(12.0),
+        jet_vane_max_rad: float = math.radians(10.0),
         fin_lift_slope_1_rad: float = 8.0,
         alpha_max_rad: float = math.radians(8.0),
     ) -> None:
         params = {
             "gimbal_max_rad": gimbal_max_rad,
+            "jet_vane_max_rad": jet_vane_max_rad,
             "fin_lift_slope_1_rad": fin_lift_slope_1_rad,
             "alpha_max_rad": alpha_max_rad,
         }
@@ -130,6 +138,7 @@ class SteeringAuthority:
         if alpha_max_rad >= _HALF_PI:
             raise ValueError("alpha_max_rad 必须小于 90 度")
         self.gimbal_max_rad = float(gimbal_max_rad)
+        self.jet_vane_max_rad = float(jet_vane_max_rad)
         self.fin_lift_slope_1_rad = float(fin_lift_slope_1_rad)
         self.alpha_max_rad = float(alpha_max_rad)
 
@@ -157,7 +166,9 @@ class SteeringAuthority:
             raise ValueError("mass_kg 与 reference_area_m2 必须为正")
         if thrust_n < 0.0 or dynamic_pressure_pa < 0.0:
             raise ValueError("thrust_n 与 dynamic_pressure_pa 必须非负")
-        tvc = (thrust_n / mass_kg) * math.sin(self.gimbal_max_rad)
+        tvc = (thrust_n / mass_kg) * math.sin(
+            self.gimbal_max_rad + self.jet_vane_max_rad
+        )
         fins = (
             dynamic_pressure_pa
             * reference_area_m2
@@ -175,11 +186,11 @@ class SteeringAuthority:
         dynamic_pressure_pa: float,
         reference_area_m2: float,
     ) -> SteeringCommand:
-        """把期望推力方向角转为物理可实现指令 (TVC 优先, 攻角补足).
+        """把期望推力方向角转为物理可实现指令 (TVC+燃气舵 优先, 攻角补足).
 
-        分配: 摆角先承担期望偏转 (TVC 与高度/动压无关), 攻角补足
-        (舵法向力依赖动压 q), 仍不足则饱和. 饱和时轨迹按实际产生
-        的法向加速度继续, 不虚构过载.
+        分配: 摆角先承担 (与高度/动压无关), 燃气舵接力 (喷流舵, 低动压
+        仍有效), 攻角补足 (气动舵法向力依赖动压 q), 仍不足则饱和. 饱和
+        时轨迹按实际产生的法向加速度继续, 不虚构过载.
         """
         for name, value in (
             ("phi_desired_rad", phi_desired_rad),
@@ -196,12 +207,21 @@ class SteeringAuthority:
         if thrust_n < 0.0 or dynamic_pressure_pa < 0.0:
             raise ValueError("thrust_n 与 dynamic_pressure_pa 必须非负")
         delta_desired = float(phi_desired_rad) - float(gamma_rad)
-        delta = max(-self.gimbal_max_rad, min(self.gimbal_max_rad, delta_desired))
-        remainder = delta_desired - delta
-        alpha = max(-self.alpha_max_rad, min(self.alpha_max_rad, remainder))
-        saturated = abs(remainder) > self.alpha_max_rad + 1e-12
+        gimbal = max(
+            -self.gimbal_max_rad, min(self.gimbal_max_rad, delta_desired)
+        )
+        remainder = delta_desired - gimbal
+        vane = max(
+            -self.jet_vane_max_rad, min(self.jet_vane_max_rad, remainder)
+        )
+        remainder2 = remainder - vane
+        alpha = max(
+            -self.alpha_max_rad, min(self.alpha_max_rad, remainder2)
+        )
+        saturated = abs(remainder2) > self.alpha_max_rad + 1e-12
+        deflection = gimbal + vane
         a_n = (
-            (thrust_n / mass_kg) * math.sin(delta)
+            (thrust_n / mass_kg) * math.sin(deflection)
             + dynamic_pressure_pa
             * reference_area_m2
             * self.fin_lift_slope_1_rad
@@ -209,7 +229,7 @@ class SteeringAuthority:
             / mass_kg
         )
         return SteeringCommand(
-            delta_rad=delta,
+            delta_rad=deflection,
             alpha_rad=alpha,
             normal_accel_m_s2=a_n,
             saturated=saturated,

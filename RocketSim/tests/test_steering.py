@@ -48,9 +48,9 @@ def test_steering_authority_budget() -> None:
     s_ref = 0.636
     budget = auth.available_normal_accel(thrust, mass, 100_000.0, s_ref)
     assert isinstance(budget, NormalAccelBudget)
-    # TVC: (200000/4000) * sin(12 度).
+    # TVC+燃气舵: (200000/4000) * sin(22 度) (12 摆角 + 10 燃气舵).
     assert budget.tvc_m_s2 == pytest.approx(
-        (thrust / mass) * math.sin(math.radians(12.0))
+        (thrust / mass) * math.sin(math.radians(22.0))
     )
     # 舵项 = q * S * C_N_alpha * alpha_max (小攻角线性, alpha 用弧度).
     assert budget.fins_m_s2 == pytest.approx(
@@ -101,25 +101,25 @@ def test_command_allocation_tvc_first_and_saturation() -> None:
     )
     # 大偏转: 摆角 10 度封顶, 攻角 8 度封顶, 饱和.
     cmd2 = auth.command(math.radians(40.0), 0.0, thrust, mass, q_pa, s_ref)
-    assert cmd2.delta_rad == pytest.approx(math.radians(12.0))
+    assert cmd2.delta_rad == pytest.approx(math.radians(22.0))
     assert cmd2.alpha_rad == pytest.approx(math.radians(8.0))
     assert cmd2.saturated
     expected_an = (
-        (thrust / mass) * math.sin(math.radians(12.0))
+        (thrust / mass) * math.sin(math.radians(22.0))
         + q_pa * s_ref * 8.0 * math.radians(8.0) / mass
     )
     assert cmd2.normal_accel_m_s2 == pytest.approx(expected_an)
     # 负偏转对称.
     cmd3 = auth.command(-math.radians(40.0), 0.0, thrust, mass, q_pa, s_ref)
-    assert cmd3.delta_rad == pytest.approx(-math.radians(12.0))
+    assert cmd3.delta_rad == pytest.approx(-math.radians(22.0))
     assert cmd3.alpha_rad == pytest.approx(-math.radians(8.0))
     assert cmd3.normal_accel_m_s2 == pytest.approx(-expected_an)
 
 
-def test_command_alpha_bridges_after_gimbal_limit() -> None:
+def test_command_alpha_bridges_after_thrust_cap() -> None:
     auth = SteeringAuthority()
-    # 期望偏转 15 度: 摆角 10 + 攻角 5, 不饱和.
-    cmd = auth.command(math.radians(15.0), 0.0, 200_000.0, 4000.0, 0.0, 0.636)
-    assert cmd.delta_rad == pytest.approx(math.radians(12.0))
+    # 期望偏转 25 度: 摆角 12 + 燃气舵 10 = 22, 攻角补 3, 不饱和.
+    cmd = auth.command(math.radians(25.0), 0.0, 200_000.0, 4000.0, 0.0, 0.636)
+    assert cmd.delta_rad == pytest.approx(math.radians(22.0))
     assert cmd.alpha_rad == pytest.approx(math.radians(3.0))
     assert not cmd.saturated

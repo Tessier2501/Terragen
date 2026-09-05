@@ -56,7 +56,7 @@ def test_smoke_optimize_alb_deterministic() -> None:
     assert r1.success
     assert r1.best_metrics.vmin_violation(700.0) >= 0.0
     assert len(r1.evaluations) > 0
-    assert len(r1.margins) >= 4
+    assert len(r1.margins) >= 5
     assert r1.attempts >= 1
 
 
@@ -67,4 +67,5 @@ def test_margins_structure() -> None:
     assert m.boost_max_q_pa >= 0.0
     assert m.reentry_max_q_pa >= 0.0
     assert m.max_axial_g >= 0.0
+    assert m.max_normal_g >= 0.0
     assert 0.0 <= m.steer_saturation_fraction <= 1.0
