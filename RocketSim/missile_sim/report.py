@@ -300,3 +300,132 @@ def generate_report(
 if __name__ == "__main__":
     out = Path(__file__).resolve().parents[1] / "output"
     print("生成报告:", generate_report(out))
+
+
+def _plot_traj_series(
+    ax,  # matplotlib Axes (库无类型存根, 隐式 Any)
+    label: str,
+    res: OptimizationResult,
+    color: str,
+    linestyle: str,
+) -> None:
+    """在 ax 上画一条最优弹道及事件标记."""
+    flight = replay_design(res.spec, res.best_x)
+    ax.plot(_range_km(flight), _alt_km(flight), color=color, lw=1.8,
+            linestyle=linestyle, label=label)  # type: ignore[attr-defined]
+    for name, marker in (("burnout", "o"), ("apogee", "^"), ("impact", "s")):
+        if name in flight.events:
+            x, y = _event_xy(flight, name)
+            ax.plot([x], [y], marker=marker, color=color, mec="k", ms=8,
+                    zorder=6)  # type: ignore[attr-defined]
+
+
+def plot_trajectories_mixed(
+    lift_alb: OptimizationResult,
+    lift_glb: OptimizationResult,
+    ball_alb: OptimizationResult,
+    ball_glb: OptimizationResult,
+    path: Path,
+) -> None:
+    """最终图: 升力滑翔 (实线) vs 纯弹道 (虚线) 最优弹道对比."""
+    fig, ax = plt.subplots(figsize=(9, 6))  # type: ignore[attr-defined]
+    _plot_traj_series(ax, "ALBM lift (v1)", lift_alb, "#1f77b4", "-")
+    _plot_traj_series(ax, "GLBM lift (v1)", lift_glb, "#d62728", "-")
+    _plot_traj_series(ax, "ALBM ballistic", ball_alb, "#7f7f7f", "--")
+    _plot_traj_series(ax, "GLBM ballistic", ball_glb, "#bcbdc0", "--")
+    ax.set_xlabel("Ground range (km)")  # type: ignore[attr-defined]
+    ax.set_ylabel("Altitude (km)")  # type: ignore[attr-defined]
+    ax.set_title("Optimal trajectories: lift-glide (v1) vs ballistic")  # type: ignore[attr-defined]
+    ax.legend(fontsize=8)  # type: ignore[attr-defined]
+    ax.grid(alpha=0.3)  # type: ignore[attr-defined]
+    fig.tight_layout()  # type: ignore[attr-defined]
+    fig.savefig(path, dpi=140)  # type: ignore[attr-defined]
+    plt.close(fig)
+
+
+def plot_front_mixed(
+    lift_alb: OptimizationResult,
+    lift_glb: OptimizationResult,
+    ball_alb: OptimizationResult,
+    ball_glb: OptimizationResult,
+    vmin: float,
+    path: Path,
+) -> None:
+    """最终图: 升力滑翔样本前端 + 两模式最优点 + Vmin 截线."""
+    fig, ax = plt.subplots(figsize=(9, 6))  # type: ignore[attr-defined]
+    for res, color, label in (
+        (lift_alb, "#1f77b4", "ALBM lift samples"),
+        (lift_glb, "#d62728", "GLBM lift samples"),
+    ):
+        pts = _front_points(res)
+        if pts.size:
+            ax.scatter(pts[:, 0], pts[:, 1], s=3, alpha=0.3, color=color, label=label)  # type: ignore[attr-defined]
+    for res, color in ((ball_alb, "#1f77b4"), (ball_glb, "#d62728")):
+        ax.scatter([res.best_metrics.range_km], [res.best_metrics.impact_speed_m_s],  # type: ignore[attr-defined]
+                   marker="*", s=260, color=color, edgecolor="k", zorder=5)
+    ax.axhline(vmin, color="k", ls="--", lw=1.2, label=f"Vmin = {vmin:.0f} m/s")  # type: ignore[attr-defined]
+    ax.set_xlabel("Range (km)")  # type: ignore[attr-defined]
+    ax.set_ylabel("Impact speed (m/s)")  # type: ignore[attr-defined]
+    ax.set_title("Lift-glide (v1) samples vs ballistic optima (stars)")  # type: ignore[attr-defined]
+    ax.legend(fontsize=8, loc="lower right")  # type: ignore[attr-defined]
+    ax.set_xlim(0, None)  # type: ignore[attr-defined]
+    fig.tight_layout()  # type: ignore[attr-defined]
+    fig.savefig(path, dpi=140)  # type: ignore[attr-defined]
+    plt.close(fig)
+
+
+def generate_final_report(
+    out_dir: Path,
+    *,
+    seed: int = 20250905,
+    popsize: int = 12,
+    maxiter: int = 25,
+    vmin_m_s: float = 700.0,
+) -> Path:
+    """最终收尾报告: 纯弹道 vs 升力滑翔 (v1) 双场景 + 图 + Markdown."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ball = run_scenario(seed=seed, popsize=popsize, maxiter=maxiter, vmin_m_s=vmin_m_s)
+    lift = run_scenario(
+        seed=seed, popsize=popsize, maxiter=maxiter, vmin_m_s=vmin_m_s,
+        lift_guidance=True,
+    )
+    plot_front_mixed(lift.alb, lift.glb, ball.alb, ball.glb, vmin_m_s,
+                     out_dir / "fig_front.png")
+    plot_trajectories_mixed(lift.alb, lift.glb, ball.alb, ball.glb,
+                            out_dir / "fig_trajectories.png")
+    plot_appendix(lift.alb, lift.glb, out_dir / "fig_appendix.png")
+
+    mb = _fmt_metric(ball.alb)
+    mg = _fmt_metric(ball.glb)
+    lines: list[str] = []
+    lines.append("# 空射 vs 地射: 升力滑翔 (v1) 最终报告\n")
+    lines.append(f"> Vmin={vmin_m_s:.0f}, 种子 {seed}; 滑翔制导 = 分段法向过载指令 (v1).\n")
+    lines.append("## 1. 结论摘要\n")
+    lines.append(
+        f"- 纯弹道: ALBM {mb['range_km']:.0f} km / {mb['v_imp']:.0f} m/s; "
+        f"GLBM {mg['range_km']:.0f} km / {mg['v_imp']:.0f} m/s;\n"
+        f"- 升力滑翔 v1: ALBM {lift.alb.best_metrics.range_km:.0f} km / "
+        f"{lift.alb.best_metrics.impact_speed_m_s:.0f} m/s; GLBM "
+        f"{lift.glb.best_metrics.range_km:.0f} km / "
+        f"{lift.glb.best_metrics.impact_speed_m_s:.0f} m/s;\n"
+        f"- 升力把高末速兑换为射程: ALB 命中速度压至贴 Vmin, 但射程增益 "
+        f"仅约 +1% (细长体 L/D 限制, 详见 PLAN 11b).\n"
+    )
+    lines.append("## 2. 最优设计参数\n| 平台/模式 | 参数 |\n|---|---|\n")
+    lines.append(_param_row(lift.alb) + "\n")
+    lines.append(_param_row(lift.glb) + "\n")
+    lines.append("## 3. 事件表 (升力滑翔最优, 高精度重放)\n")
+    lines.append("### ALBM (lift)\n" + _event_table(lift.alb))
+    lines.append("### GLBM (lift)\n" + _event_table(lift.glb))
+    lines.append("## 4. 约束裕度 (升力滑翔最优)\n")
+    lines.append("### ALBM\n| 项目 | 实测 | 阈值 | 状态 |\n|---|---|---|---|\n" + _margin_rows(lift.alb) + "\n")
+    lines.append("### GLBM\n| 项目 | 实测 | 阈值 | 状态 |\n|---|---|---|---|\n" + _margin_rows(lift.glb) + "\n")
+    lines.append("## 5. 图\n- ![front](fig_front.png)\n- ![trajectories](fig_trajectories.png)\n- ![appendix](fig_appendix.png)\n")
+    lines.append("## 6. 手动复现\n")
+    lines.append(
+        f"`python -m missile_sim.cli --scenario final --vmin {vmin_m_s:.0f} "
+        f"--seed {seed} --popsize {popsize} --maxiter {maxiter}`\n"
+    )
+    report_path = out_dir / "report.md"
+    report_path.write_text("".join(lines), encoding="utf-8")
+    return report_path

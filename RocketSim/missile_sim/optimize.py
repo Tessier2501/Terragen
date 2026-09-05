@@ -36,7 +36,7 @@ from .flight import (
 from .propulsion import Motor, TwoSegmentBurnRate
 from .steering import (
     ClimbSchedule,
-    EquilibriumGlideGuidance,
+    PiecewiseNormalGuidance,
     PitchOverSchedule,
 )
 from .vehicle import Missile
@@ -119,13 +119,14 @@ GLB_BOUNDS: tuple[tuple[float, float], ...] = (
 )
 GLB_X0: np.ndarray = np.array([4.0, 1.0, 0.5, 2.0, 3.0])
 
-# 关机后平衡滑翔指令参数 (v2, 追加在平台参数后):
-#   gamma_cmd_deg (保角, -6..-0.2 度), gain_1_s (反馈增益), v_exit_m_s (退出速度).
-_GUIDANCE_NAMES: tuple[str, ...] = ("gamma_cmd_deg", "gain_1_s", "v_exit_m_s")
+# 关机后滑翔指令参数 (v1 分段法向过载, 追加在平台参数后):
+#   (n1_g, t1_s, n2_g, dur_s): 关机后 [0,t1) 段 n1 g, [t1,t1+dur) 段 n2 g,
+#   之后纯弹道. 指令在动压 >= q_min 时经攻角实现 (见 PiecewiseNormalGuidance).
+_GUIDANCE_NAMES: tuple[str, ...] = ("n1_g", "t1_s", "n2_g", "dur_s")
 _GUIDANCE_BOUNDS: tuple[tuple[float, float], ...] = (
-    (-6.0, -0.2), (0.05, 2.0), (750.0, 1500.0)
+    (0.0, 5.0), (0.0, 300.0), (0.0, 5.0), (0.0, 300.0)
 )
-_GUIDANCE_X0: np.ndarray = np.array([-2.0, 1.0, 1000.0])  # 默认接近纯弹道.
+_GUIDANCE_X0: np.ndarray = np.array([0.0, 120.0, 0.0, 0.0])  # 默认纯弹道.
 
 GLB_NAMES_LIFT: tuple[str, ...] = GLB_NAMES + _GUIDANCE_NAMES
 GLB_BOUNDS_LIFT: tuple[tuple[float, float], ...] = GLB_BOUNDS + _GUIDANCE_BOUNDS
@@ -248,7 +249,7 @@ def make_steering_only_spec(
 
 def _lift_make_missile(
     name: str, m_dot_first: float, m_dot_second: float, tau: float,
-    guidance: EquilibriumGlideGuidance | None,
+    guidance: PiecewiseNormalGuidance | None,
 ) -> Missile:
     """升力模式弹体: 启用升力气动并挂载关机后滑翔指令."""
     burn = TwoSegmentBurnRate(
@@ -270,11 +271,9 @@ def _lift_make_missile(
     )
 
 
-def _guidance_tail(x: np.ndarray) -> EquilibriumGlideGuidance:
-    gamma_deg, gain, v_exit = (float(v) for v in x[-3:])
-    return EquilibriumGlideGuidance(
-        gamma_cmd_rad=math.radians(gamma_deg), gain_1_s=gain, v_exit_m_s=v_exit
-    )
+def _guidance_tail(x: np.ndarray) -> PiecewiseNormalGuidance:
+    n1, t1, n2, dur = (float(v) for v in x[-4:])
+    return PiecewiseNormalGuidance(n1_g=n1, t1_s=t1, n2_g=n2, dur_s=dur)
 
 
 def _build_glb_lift(x: np.ndarray) -> tuple[Missile, PitchOverSchedule]:
