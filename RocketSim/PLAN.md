@@ -177,6 +177,8 @@ RocketSim/
 
 运行: 在 RocketSim/ 目录下 `python -m pytest` (环境 myenv).
 
+手动运行接口: 见 README.md 与 `python -m missile_sim.cli --help` (最终对比报告: `--scenario final`).
+
 ## 11. RocketPy 复用 (已定: 不克隆, 零依赖自研)
 
 - 结论 (用户拍板): 不克隆 RocketPy 仓库, 不引入 rocketpy 依赖; 仅借鉴其架构思想 (组件化, 事件驱动积分, 时间序列对比).
