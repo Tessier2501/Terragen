@@ -29,7 +29,7 @@ from .atmosphere import AtmosphereUSSA76
 from .constants import EARTH_MU_SI, EARTH_RADIUS_TRAJ_M, STANDARD_GRAVITY_M_S2
 from .flight import FlightResult, ScheduleLike, simulate_powered_flight
 from .propulsion import Motor, TwoSegmentBurnRate
-from .steering import ClimbSchedule, PitchOverSchedule
+from .steering import ClimbSchedule, PiecewiseNormalGuidance, PitchOverSchedule
 from .vehicle import Missile
 
 # --- 共享占位弹体与环境 (与 PLAN 基线一致) ---
@@ -40,6 +40,12 @@ _ISP_SL: float = 245.0
 _ISP_VAC: float = 285.0
 _GEOMETRY = BodyGeometry(diameter_m=0.9, nose_length_m=3.6, body_length_m=3.4)
 _AERO = AerodynamicModel(_GEOMETRY)
+_AERO_LIFT = AerodynamicModel(
+    _GEOMETRY,
+    cl_alpha_1_rad=2.8,
+    induced_drag_factor=0.12,
+    alpha_max_lift_rad=math.radians(10.0),
+)
 _ATMOSPHERE = AtmosphereUSSA76(max_altitude_m=1_000_000.0)
 _RE = EARTH_RADIUS_TRAJ_M
 _G0 = STANDARD_GRAVITY_M_S2
@@ -67,6 +73,8 @@ class FlightMetrics:
     reentry_max_q_pa: float
     max_axial_g: float
     max_normal_g: float
+    glide_normal_g: float
+    lift_saturation_fraction: float
     steer_saturation_fraction: float
 
     @property
@@ -102,6 +110,17 @@ GLB_BOUNDS: tuple[tuple[float, float], ...] = (
 )
 GLB_X0: np.ndarray = np.array([4.0, 1.0, 0.5, 2.0, 3.0])
 
+# 关机后滑翔指令参数 (追加在平台参数后): (n1_g, t1_s, n2_g, dur_s).
+_GUIDANCE_NAMES: tuple[str, ...] = ("n1_g", "t1_s", "n2_g", "dur_s")
+_GUIDANCE_BOUNDS: tuple[tuple[float, float], ...] = (
+    (0.0, 5.0), (0.0, 300.0), (0.0, 5.0), (0.0, 300.0)
+)
+_GUIDANCE_X0: np.ndarray = np.array([0.0, 120.0, 0.0, 0.0])  # 默认纯弹道.
+
+GLB_NAMES_LIFT: tuple[str, ...] = GLB_NAMES + _GUIDANCE_NAMES
+GLB_BOUNDS_LIFT: tuple[tuple[float, float], ...] = GLB_BOUNDS + _GUIDANCE_BOUNDS
+GLB_X0_LIFT: np.ndarray = np.concatenate([GLB_X0, _GUIDANCE_X0])
+
 # ALBM 参数: (T/W0, r, tau, 拉起目标角 deg).
 ALB_NAMES: tuple[str, ...] = ("T/W0", "r", "tau", "climb_deg")
 ALB_BOUNDS: tuple[tuple[float, float], ...] = (
@@ -111,6 +130,9 @@ ALB_BOUNDS: tuple[tuple[float, float], ...] = (
     (8.0, 80.0),
 )
 ALB_X0: np.ndarray = np.array([4.0, 1.0, 0.5, 45.0])
+ALB_NAMES_LIFT: tuple[str, ...] = ALB_NAMES + _GUIDANCE_NAMES
+ALB_BOUNDS_LIFT: tuple[tuple[float, float], ...] = ALB_BOUNDS + _GUIDANCE_BOUNDS
+ALB_X0_LIFT: np.ndarray = np.concatenate([ALB_X0, _GUIDANCE_X0])
 
 
 @dataclass(frozen=True)
@@ -164,33 +186,48 @@ def _build_alb(x: np.ndarray) -> tuple[Missile, ClimbSchedule]:
     )
 
 
-def make_steering_only_spec(name: str, fixed_shape: np.ndarray) -> PlatformSpec:
-    """固定推力曲线形状 (tw0, r, tau), 仅程序角为设计变量.
+def make_steering_only_spec(
+    name: str, fixed_shape: np.ndarray, lift_guidance: bool = False
+) -> PlatformSpec:
+    """固定推力曲线形状 (tw0, r, tau), 其余 (程序角 + 可选滑翔指令) 为变量.
 
     用于方案 B 的同曲线对照实验: 同一台发动机, 平台差异只剩发射条件
-    与程序角自由度.
+    与控制自由度.
     """
     fixed = np.asarray(fixed_shape, dtype=float)
     if fixed.shape != (3,):
         raise ValueError(f"fixed_shape 必须为 (T/W0, r, tau) 三元组, 收到 {fixed.shape}")
-    full = make_platform_spec(name)
+    full = make_platform_spec(name, lift_guidance=lift_guidance)
     full_x0 = np.asarray(full.x0, dtype=float)
 
+    builder: Callable[[np.ndarray], tuple[Missile, ScheduleLike]]
     if name == "GLBM":
-        names: tuple[str, ...] = GLB_NAMES[3:]
-        bounds: tuple[tuple[float, float], ...] = GLB_BOUNDS[3:]
+        if lift_guidance:
+            names = GLB_NAMES_LIFT[3:]
+            bounds = GLB_BOUNDS_LIFT[3:]
+            builder = _build_glb_lift  # type: ignore[assignment]
+        else:
+            names = GLB_NAMES[3:]
+            bounds = GLB_BOUNDS[3:]
+            builder = _build_glb  # type: ignore[assignment]
         base_x0 = full_x0[3:]
 
         def build(x: np.ndarray) -> tuple[Missile, ScheduleLike]:
-            return _build_glb(np.concatenate([fixed, np.asarray(x, dtype=float)]))
+            return builder(np.concatenate([fixed, np.asarray(x, dtype=float)]))
 
     elif name == "ALBM":
-        names = ALB_NAMES[3:]
-        bounds = ALB_BOUNDS[3:]
+        if lift_guidance:
+            names = ALB_NAMES_LIFT[3:]
+            bounds = ALB_BOUNDS_LIFT[3:]
+            builder = _build_alb_lift
+        else:
+            names = ALB_NAMES[3:]
+            bounds = ALB_BOUNDS[3:]
+            builder = _build_alb
         base_x0 = full_x0[3:]
 
         def build(x: np.ndarray) -> tuple[Missile, ScheduleLike]:
-            return _build_alb(np.concatenate([fixed, np.asarray(x, dtype=float)]))
+            return builder(np.concatenate([fixed, np.asarray(x, dtype=float)]))
 
     else:
         raise ValueError(f"未知平台: {name!r}, 仅支持 GLBM/ALBM")
@@ -199,9 +236,59 @@ def make_steering_only_spec(name: str, fixed_shape: np.ndarray) -> PlatformSpec:
     )
 
 
-def make_platform_spec(name: str) -> PlatformSpec:
-    """返回 GLBM / ALBM 的平台规格."""
+def _lift_make_missile(
+    name: str, m_dot_first: float, m_dot_second: float, tau: float,
+    guidance: PiecewiseNormalGuidance | None,
+) -> Missile:
+    """升力模式弹体: 启用升力气动并挂载关机后滑翔指令."""
+    burn = TwoSegmentBurnRate(
+        propellant_mass_kg=_PROP_MASS_KG,
+        mass_flow_first_kg_s=m_dot_first,
+        mass_flow_second_kg_s=m_dot_second,
+        first_segment_mass_kg=tau * _PROP_MASS_KG,
+    )
+    motor = Motor(
+        dry_mass_kg=_DRY_MASS_KG,
+        propellant_mass_kg=_PROP_MASS_KG,
+        isp_sea_level_s=_ISP_SL,
+        isp_vacuum_s=_ISP_VAC,
+        burn_rate=burn,
+    )
+    return Missile(
+        name=name, motor=motor, geometry=_GEOMETRY, aero_model=_AERO_LIFT,
+        post_boost_guidance=guidance,
+    )
+
+
+def _guidance_tail(x: np.ndarray) -> PiecewiseNormalGuidance:
+    n1, t1, n2, dur = (float(v) for v in x[-4:])
+    return PiecewiseNormalGuidance(n1_g=n1, t1_s=t1, n2_g=n2, dur_s=dur)
+
+
+def _build_glb_lift(x: np.ndarray) -> tuple[Missile, PitchOverSchedule]:
+    tw0, ratio, tau, hold_s, omega_deg = (float(v) for v in x[:5])
+    m1, m2 = _shape_mass_flows(tw0, ratio)
+    missile = _lift_make_missile("GLBM", m1, m2, tau, _guidance_tail(x))
+    return missile, PitchOverSchedule(
+        hold_time_s=hold_s, turn_rate_rad_s=math.radians(omega_deg)
+    )
+
+
+def _build_alb_lift(x: np.ndarray) -> tuple[Missile, ClimbSchedule]:
+    tw0, ratio, tau, climb_deg = (float(v) for v in x[:4])
+    m1, m2 = _shape_mass_flows(tw0, ratio)
+    missile = _lift_make_missile("ALBM", m1, m2, tau, _guidance_tail(x))
+    return missile, ClimbSchedule(target_angle_rad=math.radians(climb_deg))
+
+
+def make_platform_spec(name: str, lift_guidance: bool = False) -> PlatformSpec:
+    """返回 GLBM / ALBM 的平台规格 (lift_guidance=True 追加滑翔指令参)."""
     if name == "GLBM":
+        if lift_guidance:
+            return PlatformSpec(
+                name="GLBM", param_names=GLB_NAMES_LIFT, bounds=GLB_BOUNDS_LIFT,
+                x0=GLB_X0_LIFT, build=_build_glb_lift,  # type: ignore[arg-type]
+            )
         return PlatformSpec(
             name="GLBM",
             param_names=GLB_NAMES,
@@ -210,6 +297,11 @@ def make_platform_spec(name: str) -> PlatformSpec:
             build=_build_glb,  # type: ignore[arg-type]
         )
     if name == "ALBM":
+        if lift_guidance:
+            return PlatformSpec(
+                name="ALBM", param_names=ALB_NAMES_LIFT, bounds=ALB_BOUNDS_LIFT,
+                x0=ALB_X0_LIFT, build=_build_alb_lift,  # type: ignore[arg-type]
+            )
         return PlatformSpec(
             name="ALBM",
             param_names=ALB_NAMES,
@@ -230,6 +322,16 @@ def _initial_state(
     return _RE + 10_000.0, v0, 0.0
 
 
+def _time_fraction(
+    times: np.ndarray, mask: np.ndarray, window: np.ndarray
+) -> float:
+    """mask 覆盖时间占 window 覆盖时间的比例."""
+    dt = np.zeros(len(times))
+    dt[:-1] = np.diff(times)
+    total = float(np.sum(dt[window]))
+    return float(np.sum(dt[mask])) / total if total > 0.0 else 0.0
+
+
 def compute_metrics(
     result: FlightResult, missile: Missile, schedule: ScheduleLike
 ) -> FlightMetrics:
@@ -239,7 +341,8 @@ def compute_metrics(
             success=False, impact_speed_m_s=0.0, range_m=0.0, flight_time_s=0.0,
             burnout_speed_m_s=0.0, burnout_altitude_m=0.0, apogee_altitude_m=0.0,
             max_mach=0.0, boost_max_q_pa=0.0, reentry_max_q_pa=0.0,
-            max_axial_g=0.0, max_normal_g=0.0, steer_saturation_fraction=0.0,
+            max_axial_g=0.0, max_normal_g=0.0, glide_normal_g=0.0,
+            lift_saturation_fraction=0.0, steer_saturation_fraction=0.0,
         )
     burn_time = missile.motor.burn_rate.burn_time_s
     times = result.times
@@ -295,6 +398,34 @@ def compute_metrics(
             saturated[i] = cmd.saturated
             normal_g[i] = abs(cmd.normal_accel_m_s2) / _G0
 
+    # 关机后升力滑翔行 (与飞行方程同构的记账, 供裕度表).
+    glide_g = np.zeros_like(v)
+    lift_sat = np.zeros(len(times), dtype=bool)
+    lift_active = np.zeros(len(times), dtype=bool)
+    guidance = missile.post_boost_guidance
+    aero = missile.aero_model
+    if guidance is not None and aero.lift_enabled:
+        for i in range(len(times)):
+            if thrust_arr[i] > 0.0:
+                continue
+            n_g = guidance.load_factor_g(float(times[i]) - burn_time)
+            qq = float(q[i])
+            if n_g <= 0.0 or qq < guidance.q_min_pa:
+                continue
+            lift_active[i] = True
+            s_ref = missile.geometry.reference_area_m2
+            cl_demand = n_g * m[i] * _G0 / (qq * s_ref)
+            alpha_req = cl_demand / aero.cl_alpha_1_rad
+            alpha_max = min(aero.alpha_max_lift_rad, math.pi / 2.0)
+            alpha_cap = (
+                guidance.accel_cap_g * m[i] * _G0
+                / (qq * s_ref * aero.cl_alpha_1_rad)
+            )
+            alpha_eff = min(alpha_req, alpha_max, alpha_cap)
+            lift_sat[i] = alpha_eff < alpha_req - 1e-12
+            cl = aero.lift_coefficient(alpha_eff)
+            glide_g[i] = qq * s_ref * cl / (m[i] * _G0)
+
     axial_accel_g = np.abs(thrust_arr - drag_arr) / m / _G0
     boost_mask = times <= burn_time
     reentry_mask = (times >= t_apogee) & (alt <= 80_000.0)
@@ -321,6 +452,10 @@ def compute_metrics(
         reentry_max_q_pa=float(np.max(q[reentry_mask])) if np.any(reentry_mask) else 0.0,
         max_axial_g=float(np.max(axial_accel_g)),
         max_normal_g=float(np.max(normal_g[boost_mask & (thrust_arr > 0.0)])),
+        glide_normal_g=float(np.max(glide_g)) if np.any(glide_g) else 0.0,
+        lift_saturation_fraction=_time_fraction(
+            times, lift_active & lift_sat, lift_active
+        ),
         steer_saturation_fraction=sat_fraction,
     )
 
@@ -373,7 +508,8 @@ def compute_metrics_from_failure() -> FlightMetrics:
         success=False, impact_speed_m_s=0.0, range_m=0.0, flight_time_s=0.0,
         burnout_speed_m_s=0.0, burnout_altitude_m=0.0, apogee_altitude_m=0.0,
         max_mach=0.0, boost_max_q_pa=0.0, reentry_max_q_pa=0.0,
-        max_axial_g=0.0, max_normal_g=0.0, steer_saturation_fraction=0.0,
+        max_axial_g=0.0, max_normal_g=0.0, glide_normal_g=0.0,
+        lift_saturation_fraction=0.0, steer_saturation_fraction=0.0,
     )
 
 
@@ -435,6 +571,7 @@ def _default_margins(metrics: FlightMetrics) -> list[Margin]:
         Margin(name="reentry Max-Q", value=metrics.reentry_max_q_pa, limit=2_500_000.0),
         Margin(name="axial accel", value=metrics.max_axial_g, limit=25.0),
         Margin(name="turn normal g", value=metrics.max_normal_g, limit=8.0),
+        Margin(name="glide normal g", value=metrics.glide_normal_g, limit=5.0),
         Margin(name="steering saturation frac", value=metrics.steer_saturation_fraction, limit=0.15),
     ]
 
@@ -456,6 +593,7 @@ def optimize_platform(
     maxiter: int = 25,
     max_attempts: int = 2,
     spec_override: PlatformSpec | None = None,
+    lift_guidance: bool = False,
 ) -> OptimizationResult:
     """寻优主入口: 先只带 Vmin, 越限项转硬约束重跑 (至多 max_attempts 轮).
 
@@ -464,7 +602,11 @@ def optimize_platform(
     """
     if spec_override is not None and not isinstance(spec_override, PlatformSpec):
         raise TypeError("spec_override 必须为 PlatformSpec")
-    spec = spec_override if spec_override is not None else make_platform_spec(spec_name)
+    spec = (
+        spec_override
+        if spec_override is not None
+        else make_platform_spec(spec_name, lift_guidance=lift_guidance)
+    )
     history: list[tuple[tuple[float, ...], FlightMetrics]] = []
     active_extra: list[str] = []
     margins: list[Margin] = []
@@ -559,6 +701,7 @@ def optimize_platform(
             "reentry Max-Q": "reentry_max_q_pa",
             "axial accel": "max_axial_g",
             "turn normal g": "max_normal_g",
+            "glide normal g": "glide_normal_g",
         }
         new_keys = [
             margin_key_map[m.name]
@@ -602,6 +745,7 @@ _EXTRA_LIMITS.update(
         "reentry_max_q_pa": (lambda m: m.reentry_max_q_pa, 2_500_000.0),
         "max_axial_g": (lambda m: m.max_axial_g, 25.0),
         "max_normal_g": (lambda m: m.max_normal_g, 8.0),
+        "glide_normal_g": (lambda m: m.glide_normal_g, 5.0),
     }
 )
 
@@ -619,6 +763,12 @@ __all__ = [
     "clear_cache",
     "compute_metrics",
     "evaluate_design",
+    "ALB_BOUNDS_LIFT",
+    "ALB_NAMES_LIFT",
+    "ALB_X0_LIFT",
+    "GLB_BOUNDS_LIFT",
+    "GLB_NAMES_LIFT",
+    "GLB_X0_LIFT",
     "make_platform_spec",
     "make_steering_only_spec",
     "optimize_platform",

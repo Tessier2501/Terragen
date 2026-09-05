@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from .aerodynamics import AerodynamicModel, BodyGeometry
 from .propulsion import Motor
-from .steering import SteeringAuthority
+from .steering import PiecewiseNormalGuidance, SteeringAuthority
 
 
 class Missile:
@@ -28,6 +28,7 @@ class Missile:
         geometry: BodyGeometry,
         aero_model: AerodynamicModel | None = None,
         steering_authority: SteeringAuthority | None = None,
+        post_boost_guidance: PiecewiseNormalGuidance | None = None,
     ) -> None:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("name 必须为非空字符串")
@@ -40,6 +41,10 @@ class Missile:
             steering_authority, SteeringAuthority
         ):
             raise TypeError("steering_authority 必须为 SteeringAuthority")
+        if post_boost_guidance is not None and not isinstance(
+            post_boost_guidance, PiecewiseNormalGuidance
+        ):
+            raise TypeError("post_boost_guidance 必须为 PiecewiseNormalGuidance")
         self.name = name
         self.motor = motor
         self.geometry = geometry
@@ -51,6 +56,9 @@ class Missile:
             if steering_authority is not None
             else SteeringAuthority()
         )
+        self.post_boost_guidance = post_boost_guidance
+        if post_boost_guidance is not None and not self.aero_model.lift_enabled:
+            raise ValueError("配置关机后滑翔必须启用升力模型 (cl_alpha > 0)")
 
     @property
     def initial_mass_kg(self) -> float:

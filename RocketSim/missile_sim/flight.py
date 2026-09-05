@@ -23,7 +23,7 @@ import numpy as np
 from scipy.integrate import solve_ivp  # type: ignore[import-untyped]
 
 from .atmosphere import AtmosphereUSSA76
-from .constants import EARTH_MU_SI, EARTH_RADIUS_TRAJ_M
+from .constants import EARTH_MU_SI, EARTH_RADIUS_TRAJ_M, STANDARD_GRAVITY_M_S2
 from .steering import ClimbSchedule, PitchOverSchedule
 from .vehicle import Missile
 
@@ -304,24 +304,48 @@ def _powered_rhs(
     )
     phi = schedule.angle(t, gamma)
     g_acc = mu / (r * r)
-    # 转向能力饱和: 程序角经 TVC/舵分配为物理可实现指令, 轨迹按
-    # 实际产生的法向加速度转弯 (低动压下无法瞬间大角度指向).
-    # 关机 (推力=0) 后无姿态控制能力, 弹道必须纯弹道: 舵面法向力
-    # 不得继续作用, 否则会在再入段虚构升力导致跳跃弹道.
+    q_pa = 0.5 * atmo.density_kg_m3 * v * v
+    lift_normal_accel = 0.0
     if thrust > 0.0:
+        # 助推段: 程序角经 TVC/舵分配为物理可实现指令 (低动压下无法
+        # 瞬间大角度指向). 攻角诱导阻力按小攻角忽略 (助推段声明简化).
         cmd = missile.steering_authority.command(
-            phi,
-            gamma,
-            thrust,
-            m,
-            0.5 * atmo.density_kg_m3 * v * v,
-            missile.geometry.reference_area_m2,
+            phi, gamma, thrust, m, q_pa, missile.geometry.reference_area_m2
         )
         achieved_delta = cmd.alpha_rad + cmd.delta_rad
         normal_accel = cmd.normal_accel_m_s2
     else:
+        # 关机后: 无推力. 若弹体配置升力滑翔 (PLAN 11b), 按分段法向
+        # 过载指令经攻角实现升力 (动压不足或指令为 0 时保持纯弹道);
+        # 未配置则维持纯弹道 (再入不得虚构升力).
         achieved_delta = 0.0
         normal_accel = 0.0
+        guidance = missile.post_boost_guidance
+        aero = missile.aero_model
+        if guidance is not None and aero.lift_enabled:
+            # 指令时间轴: 有助推时相对关机, 无助推 (纯滑翔测试) 从 0 起算.
+            t_base = missile.motor.burn_rate.burn_time_s if enable_thrust else 0.0
+            n_g = guidance.load_factor_g(t - t_base)
+            if n_g > 0.0 and q_pa >= guidance.q_min_pa:
+                # 需求升力系数 -> 攻角, 受 攻角上限/气动 g 上限 双重限幅.
+                s_ref = missile.geometry.reference_area_m2
+                cl_demand = n_g * m * STANDARD_GRAVITY_M_S2 / (q_pa * s_ref)
+                alpha_max = min(aero.alpha_max_lift_rad, math.pi / 2.0)
+                alpha_cap_g = (
+                    guidance.accel_cap_g * m * STANDARD_GRAVITY_M_S2
+                    / (q_pa * s_ref * aero.cl_alpha_1_rad)
+                )
+                alpha_eff = min(cl_demand / aero.cl_alpha_1_rad, alpha_max, alpha_cap_g)
+                cl = aero.lift_coefficient(alpha_eff)
+                lift = q_pa * s_ref * cl
+                lift_normal_accel = lift / m
+                # 诱导阻力加入总阻力.
+                cd = cd + aero.induced_drag_coefficient(cl)
+                drag = (
+                    0.5 * atmo.density_kg_m3 * v * v
+                    * missile.geometry.reference_area_m2 * cd
+                )
+                normal_accel = lift_normal_accel
     thrust_axial = thrust * math.cos(achieved_delta) / m
     return np.array(
         [

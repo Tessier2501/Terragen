@@ -116,9 +116,11 @@ class BodyGeometry:
 
 
 class AerodynamicModel:
-    """零升阻力模型: Cd(M, rho, v, T).
+    """零升阻力模型 + 可选升力/诱导阻力 (PLAN 11b 扩展).
 
-    摩阻按当地雷诺数估算 (需要密度/速度/温度), 波阻与底阻只依赖马赫.
+    Cd(M, rho, v, T) 含摩阻/底阻/波阻; 当 cl_alpha_1_rad > 0 时启用
+    升力模型: CL = cl_alpha * alpha (alpha 限幅在 alpha_max_lift 内),
+    诱导阻力 Cd_i = induced_drag_factor * CL^2 加入总阻力.
     """
 
     def __init__(
@@ -126,6 +128,9 @@ class AerodynamicModel:
         geometry: BodyGeometry,
         base_drag_coeff: float = 0.10,
         roughness_factor: float = 1.0,
+        cl_alpha_1_rad: float = 0.0,
+        induced_drag_factor: float = 0.0,
+        alpha_max_lift_rad: float = math.radians(10.0),
     ) -> None:
         """构造气动模型.
 
@@ -133,20 +138,46 @@ class AerodynamicModel:
             geometry: 弹体几何.
             base_drag_coeff: 底阻系数占位常数 (量级 0.05-0.15).
             roughness_factor: 粗糙度乘子 (1.0 = 光滑湍流平板).
+            cl_alpha_1_rad: 升力线斜率 (1/rad); 0 = 关闭升力模型.
+            induced_drag_factor: 诱导阻力因子 kappa (CD_i = kappa*CL^2).
+            alpha_max_lift_rad: 可控攻角上限 (升力面/舵面).
         """
         for name, value in (
             ("base_drag_coeff", base_drag_coeff),
             ("roughness_factor", roughness_factor),
+            ("cl_alpha_1_rad", cl_alpha_1_rad),
+            ("induced_drag_factor", induced_drag_factor),
+            ("alpha_max_lift_rad", alpha_max_lift_rad),
         ):
             if not isinstance(value, (int, float)) or not math.isfinite(value):
                 raise TypeError(f"{name} 必须为有限数值")
             if value < 0.0:
                 raise ValueError(f"{name} 必须非负, 收到 {value!r}")
+        if alpha_max_lift_rad > math.pi / 3.0:
+            raise ValueError("alpha_max_lift_rad 过大 (>60 度)")
         if not isinstance(geometry, BodyGeometry):
             raise TypeError("geometry 必须为 BodyGeometry")
         self.geometry = geometry
         self.base_drag_coeff = float(base_drag_coeff)
         self.roughness_factor = float(roughness_factor)
+        self.cl_alpha_1_rad = float(cl_alpha_1_rad)
+        self.induced_drag_factor = float(induced_drag_factor)
+        self.alpha_max_lift_rad = float(alpha_max_lift_rad)
+
+    @property
+    def lift_enabled(self) -> bool:
+        """是否启用升力模型."""
+        return self.cl_alpha_1_rad > 0.0
+
+    def lift_coefficient(self, alpha_rad: float) -> float:
+        """攻角 alpha (已限幅) 对应的升力系数 CL = cl_alpha * alpha."""
+        if not self.lift_enabled:
+            raise ValueError("升力模型未启用 (cl_alpha_1_rad = 0)")
+        return self.cl_alpha_1_rad * float(alpha_rad)
+
+    def induced_drag_coefficient(self, cl: float) -> float:
+        """升力系数 CL 对应的诱导阻力系数."""
+        return self.induced_drag_factor * float(cl) * float(cl)
 
     @staticmethod
     def _transonic_factor(mach: float) -> float:

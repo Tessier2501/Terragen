@@ -38,13 +38,16 @@ def run_scenario(
     seed: int = 20250905,
     popsize: int = 12,
     maxiter: int = 25,
+    lift_guidance: bool = False,
 ) -> ScenarioOutcome:
-    """运行主寻优与全部对照实验 (约 3-6 分钟)."""
+    """运行主寻优与全部对照实验 (约 3-6 分钟; 升力模式约 6-10 分钟)."""
     alb = optimize_platform(
-        "ALBM", vmin_m_s=vmin_m_s, seed=seed, popsize=popsize, maxiter=maxiter
+        "ALBM", vmin_m_s=vmin_m_s, seed=seed, popsize=popsize, maxiter=maxiter,
+        lift_guidance=lift_guidance,
     )
     glb = optimize_platform(
-        "GLBM", vmin_m_s=vmin_m_s, seed=seed + 1000, popsize=popsize, maxiter=maxiter
+        "GLBM", vmin_m_s=vmin_m_s, seed=seed + 1000, popsize=popsize, maxiter=maxiter,
+        lift_guidance=lift_guidance,
     )
     if not (alb.success and glb.success):
         raise RuntimeError("主寻优未找到可行解, 无法继续对照实验")
@@ -56,7 +59,8 @@ def run_scenario(
         seed=seed + 2000,
         popsize=popsize,
         maxiter=maxiter,
-        spec_override=make_steering_only_spec("GLBM", alb_shape),
+        spec_override=make_steering_only_spec("GLBM", alb_shape, lift_guidance=lift_guidance),
+        lift_guidance=lift_guidance,
     )
     alb_glb = optimize_platform(
         "ALBM",
@@ -64,7 +68,8 @@ def run_scenario(
         seed=seed + 3000,
         popsize=popsize,
         maxiter=maxiter,
-        spec_override=make_steering_only_spec("ALBM", glb_shape),
+        spec_override=make_steering_only_spec("ALBM", glb_shape, lift_guidance=lift_guidance),
+        lift_guidance=lift_guidance,
     )
     return ScenarioOutcome(
         alb=alb,

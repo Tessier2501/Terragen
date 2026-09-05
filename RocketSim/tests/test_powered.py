@@ -13,7 +13,7 @@ import math
 import numpy as np
 import pytest
 
-from missile_sim.aerodynamics import BodyGeometry
+from missile_sim.aerodynamics import AerodynamicModel, BodyGeometry
 from missile_sim.atmosphere import AtmosphereUSSA76
 from missile_sim.constants import EARTH_MU_SI, EARTH_RADIUS_TRAJ_M
 from missile_sim.flight import impact_ground_range_m, simulate_powered_flight
@@ -172,3 +172,28 @@ def test_invalid_inputs(atmo: AtmosphereUSSA76) -> None:
             v0_m_s=100.0,
             gamma0_rad=0.1,
         )
+
+
+def test_guidance_lift_changes_ballistic_endgame() -> None:
+    """关机后升力指令应产生滑翔记账且轨迹仍成功 (PLAN 11b 冒烟)."""
+    from missile_sim.steering import PiecewiseNormalGuidance
+    aero_lift = AerodynamicModel(
+        BodyGeometry(0.9, 3.6, 3.4),
+        cl_alpha_1_rad=2.8, induced_drag_factor=0.12,
+        alpha_max_lift_rad=math.radians(10.0),
+    )
+    motor = Motor(
+        dry_mass_kg=1500.0, propellant_mass_kg=3500.0,
+        isp_sea_level_s=245.0, isp_vacuum_s=285.0,
+        burn_rate=ConstantBurnRate(3500.0, 3500.0 / 42.0),
+    )
+    guidance = PiecewiseNormalGuidance(n1_g=0.5, t1_s=900.0, n2_g=0.0, dur_s=1.0)
+    missile = Missile("lift", motor, BodyGeometry(0.9, 3.6, 3.4), aero_lift, post_boost_guidance=guidance)
+    res = simulate_powered_flight(
+        missile, AtmosphereUSSA76(max_altitude_m=1_000_000.0),
+        ClimbSchedule(math.radians(5.0)),
+        r0_m=EARTH_RADIUS_TRAJ_M + 10_000.0, v0_m_s=700.0,
+        gamma0_rad=math.radians(5.0), t_max_s=1500.0,
+        rtol=1e-9, atol=1e-8, enable_thrust=False,
+    )
+    assert res.success, res.message

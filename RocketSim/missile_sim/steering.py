@@ -85,6 +85,51 @@ class ClimbSchedule(_ScheduleBase):
 
 
 @dataclass(frozen=True)
+class PiecewiseNormalGuidance:
+    """关机后法向过载分段指令 (g, 向上为正; 有升力滑翔扩展用).
+
+    时间轴为"相对关机时刻": [0, t1) 段指令 n1_g, [t1, t1+dur_s) 段
+    指令 n2_g, 之后回到 0 (纯弹道). 指令仅在动压 q >= q_min_pa 时
+    生效 (舵面/升力面需要足够动压), 高空稀薄段自动退化为纯弹道.
+    """
+
+    n1_g: float
+    t1_s: float
+    n2_g: float
+    dur_s: float
+    q_min_pa: float = 2000.0
+    accel_cap_g: float = 5.0
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("n1_g", self.n1_g),
+            ("t1_s", self.t1_s),
+            ("n2_g", self.n2_g),
+            ("dur_s", self.dur_s),
+            ("q_min_pa", self.q_min_pa),
+            ("accel_cap_g", self.accel_cap_g),
+        ):
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise TypeError(f"{name} 必须为有限数值")
+        if self.n1_g < 0.0 or self.n2_g < 0.0:
+            raise ValueError("法向过载指令必须非负 (向上拉起)")
+        if self.t1_s < 0.0 or self.dur_s < 0.0 or self.q_min_pa < 0.0:
+            raise ValueError("时间与 q_min 必须非负")
+        if self.accel_cap_g <= 0.0:
+            raise ValueError("accel_cap_g 必须为正数")
+
+    def load_factor_g(self, t_since_burnout_s: float) -> float:
+        """相对关机时间对应的指令法向过载 (g)."""
+        if t_since_burnout_s < 0.0:
+            raise ValueError(f"t_since_burnout_s 必须非负, 收到 {t_since_burnout_s!r}")
+        if t_since_burnout_s < self.t1_s:
+            return self.n1_g
+        if t_since_burnout_s < self.t1_s + self.dur_s:
+            return self.n2_g
+        return 0.0
+
+
+@dataclass(frozen=True)
 class NormalAccelBudget:
     """当前状态下可用的法向加速度分解."""
 
@@ -239,6 +284,7 @@ class SteeringAuthority:
 __all__ = [
     "ClimbSchedule",
     "NormalAccelBudget",
+    "PiecewiseNormalGuidance",
     "PitchOverSchedule",
     "SteeringAuthority",
     "SteeringCommand",
