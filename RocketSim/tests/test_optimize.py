@@ -7,6 +7,7 @@ import pytest
 
 from missile_sim.optimize import (
     clear_cache,
+    make_steering_only_spec,
     evaluate_design,
     make_platform_spec,
     optimize_platform,
@@ -69,3 +70,15 @@ def test_margins_structure() -> None:
     assert m.max_axial_g >= 0.0
     assert m.max_normal_g >= 0.0
     assert 0.0 <= m.steer_saturation_fraction <= 1.0
+
+
+def test_steering_only_spec_matches_full() -> None:
+    """固定曲线仅优化程序角的 spec 与全参数评估物理一致."""
+    fixed = np.array([4.0, 1.0, 0.5])
+    steer_spec = make_steering_only_spec("ALBM", fixed)
+    full_spec = make_platform_spec("ALBM")
+    m_steer = evaluate_design(steer_spec, np.array([45.0]))
+    m_full = evaluate_design(full_spec, np.array([4.0, 1.0, 0.5, 45.0]))
+    assert m_steer.success and m_full.success
+    assert m_steer.range_m == pytest.approx(m_full.range_m, rel=1e-12)
+    assert steer_spec.param_names == ("climb_deg",)

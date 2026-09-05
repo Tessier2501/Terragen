@@ -164,6 +164,41 @@ def _build_alb(x: np.ndarray) -> tuple[Missile, ClimbSchedule]:
     )
 
 
+def make_steering_only_spec(name: str, fixed_shape: np.ndarray) -> PlatformSpec:
+    """固定推力曲线形状 (tw0, r, tau), 仅程序角为设计变量.
+
+    用于方案 B 的同曲线对照实验: 同一台发动机, 平台差异只剩发射条件
+    与程序角自由度.
+    """
+    fixed = np.asarray(fixed_shape, dtype=float)
+    if fixed.shape != (3,):
+        raise ValueError(f"fixed_shape 必须为 (T/W0, r, tau) 三元组, 收到 {fixed.shape}")
+    full = make_platform_spec(name)
+    full_x0 = np.asarray(full.x0, dtype=float)
+
+    if name == "GLBM":
+        names: tuple[str, ...] = GLB_NAMES[3:]
+        bounds: tuple[tuple[float, float], ...] = GLB_BOUNDS[3:]
+        base_x0 = full_x0[3:]
+
+        def build(x: np.ndarray) -> tuple[Missile, ScheduleLike]:
+            return _build_glb(np.concatenate([fixed, np.asarray(x, dtype=float)]))
+
+    elif name == "ALBM":
+        names = ALB_NAMES[3:]
+        bounds = ALB_BOUNDS[3:]
+        base_x0 = full_x0[3:]
+
+        def build(x: np.ndarray) -> tuple[Missile, ScheduleLike]:
+            return _build_alb(np.concatenate([fixed, np.asarray(x, dtype=float)]))
+
+    else:
+        raise ValueError(f"未知平台: {name!r}, 仅支持 GLBM/ALBM")
+    return PlatformSpec(
+        name=name, param_names=names, bounds=bounds, x0=base_x0, build=build
+    )
+
+
 def make_platform_spec(name: str) -> PlatformSpec:
     """返回 GLBM / ALBM 的平台规格."""
     if name == "GLBM":
@@ -342,6 +377,24 @@ def compute_metrics_from_failure() -> FlightMetrics:
     )
 
 
+def replay_design(
+    spec: PlatformSpec, x: np.ndarray, *, rtol: float = 1e-10, atol: float = 1e-8
+) -> FlightResult:
+    """高精度重放某设计, 返回完整事件积分结果 (报告/绘图用)."""
+    x_arr = np.asarray(x, dtype=float)
+    if x_arr.shape != (len(spec.param_names),):
+        raise ValueError(
+            f"参数个数错误: 期望 {len(spec.param_names)}, 收到 {x_arr.shape[0]}"
+        )
+    missile, schedule = spec.build(x_arr)
+    r0, v0, gamma0 = _initial_state(spec, _ATMOSPHERE)
+    return simulate_powered_flight(
+        missile, _ATMOSPHERE, schedule,
+        r0_m=r0, v0_m_s=v0, gamma0_rad=gamma0,
+        t_max_s=3600.0, rtol=rtol, atol=atol,
+    )
+
+
 @dataclass
 class OptimizationResult:
     """一次平台优化的完整输出 (含全部评估样本, 供前端图/报告)."""
@@ -402,9 +455,16 @@ def optimize_platform(
     popsize: int = 12,
     maxiter: int = 25,
     max_attempts: int = 2,
+    spec_override: PlatformSpec | None = None,
 ) -> OptimizationResult:
-    """寻优主入口: 先只带 Vmin, 越限项转硬约束重跑 (至多 max_attempts 轮)."""
-    spec = make_platform_spec(spec_name)
+    """寻优主入口: 先只带 Vmin, 越限项转硬约束重跑 (至多 max_attempts 轮).
+
+    spec_override: 传入 make_steering_only_spec 的结果可做固定曲线的
+        程序角寻优 (方案 B 同曲线对照).
+    """
+    if spec_override is not None and not isinstance(spec_override, PlatformSpec):
+        raise TypeError("spec_override 必须为 PlatformSpec")
+    spec = spec_override if spec_override is not None else make_platform_spec(spec_name)
     history: list[tuple[tuple[float, ...], FlightMetrics]] = []
     active_extra: list[str] = []
     margins: list[Margin] = []
@@ -560,5 +620,7 @@ __all__ = [
     "compute_metrics",
     "evaluate_design",
     "make_platform_spec",
+    "make_steering_only_spec",
     "optimize_platform",
+    "replay_design",
 ]
