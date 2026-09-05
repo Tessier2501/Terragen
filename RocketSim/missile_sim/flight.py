@@ -22,7 +22,10 @@ from typing import Callable
 import numpy as np
 from scipy.integrate import solve_ivp  # type: ignore[import-untyped]
 
+from .atmosphere import AtmosphereUSSA76
 from .constants import EARTH_MU_SI, EARTH_RADIUS_TRAJ_M
+from .steering import ClimbSchedule, PitchOverSchedule
+from .vehicle import Missile
 
 # 状态向量分量索引.
 IDX_R: int = 0
@@ -245,13 +248,217 @@ def impact_ground_range_m(
     return (float(rec.state[IDX_THETA]) - theta0) * r_target_m
 
 
+# --- 动力飞行 (M2): 状态 (r, theta, v, gamma, m), m 为弹体总质量. ---
+
+IDX_MASS: int = 4
+
+ScheduleLike = ClimbSchedule | PitchOverSchedule
+
+
+def _powered_rhs(
+    t: float,
+    y: np.ndarray,
+    missile: Missile,
+    atmosphere: AtmosphereUSSA76,
+    schedule: ScheduleLike,
+    mu: float,
+    enable_thrust: bool,
+) -> np.ndarray:
+    """动力段右端: 球面重力 + 推力 (方向角 phi) + 大气阻力 + 质量流失."""
+    r = float(y[IDX_R])
+    v = float(y[IDX_V])
+    gamma = float(y[IDX_GAMMA])
+    m = float(y[IDX_MASS])
+    if v <= 0.0:
+        raise ValueError(f"速度非正 (v={v:.6g} m/s), 方程奇异")
+    sin_g = math.sin(gamma)
+    cos_g = math.cos(gamma)
+    # 命中事件所在步的 RK 内部节点可能瞬时低于地表: 采样高度钳到 >= 0
+    # (大气特性按海平面近似), 事件根仍精确定位于 r = R_e, 影响仅末半步.
+    atmo = atmosphere.sample(max(r - EARTH_RADIUS_TRAJ_M, 0.0))
+    if enable_thrust:
+        thrust = missile.motor.thrust(t, atmo.pressure_pa)
+        m_dot = missile.motor.burn_rate.mass_flow_rate(t)
+    else:
+        thrust = 0.0
+        m_dot = 0.0
+    mach = v / atmo.speed_of_sound_m_s
+    cd = missile.aero_model.cd_zero_lift(
+        mach, atmo.density_kg_m3, v, atmo.temperature_k
+    )
+    drag = (
+        0.5
+        * atmo.density_kg_m3
+        * v
+        * v
+        * missile.geometry.reference_area_m2
+        * cd
+    )
+    phi = schedule.angle(t, gamma)
+    g_acc = mu / (r * r)
+    thrust_axial = thrust * math.cos(phi - gamma) / m
+    thrust_normal = thrust * math.sin(phi - gamma) / m
+    return np.array(
+        [
+            v * sin_g,
+            v * cos_g / r,
+            thrust_axial - drag / m - g_acc * sin_g,
+            thrust_normal / v + (v / r - g_acc / v) * cos_g,
+            -m_dot,
+        ]
+    )
+
+
+def burnout_time_event_spec(burn_time_s: float) -> EventSpec:
+    """关机事件: 以燃烧时间 t 触发 (推进剂闭合后精确已知).
+
+    比质量-干重判据更稳健: 质量在关机后保持不变, 不会产生符号翻转.
+    """
+    if not isinstance(burn_time_s, (int, float)) or not math.isfinite(burn_time_s):
+        raise TypeError("burn_time_s 必须为有限数值")
+    if burn_time_s <= 0.0:
+        raise ValueError(f"burn_time_s 必须为正数, 收到 {burn_time_s!r}")
+
+    def func(t: float, y: np.ndarray) -> float:
+        return t - burn_time_s
+
+    return EventSpec(name="burnout", func=func, direction=1)
+
+
+def simulate_powered_flight(
+    missile: Missile,
+    atmosphere: AtmosphereUSSA76,
+    schedule: ScheduleLike,
+    *,
+    r0_m: float,
+    v0_m_s: float,
+    gamma0_rad: float,
+    theta0_rad: float = 0.0,
+    mu: float = EARTH_MU_SI,
+    r_target_m: float = EARTH_RADIUS_TRAJ_M,
+    t_max_s: float = 3600.0,
+    rtol: float = 1e-9,
+    atol: float = 1e-9,
+    enable_thrust: bool = True,
+) -> FlightResult:
+    """积分一条完整动力弹道: 助推 -> 关机 -> 远地点 -> 命中.
+
+    事件顺序不限, 每段取最先触发的终止事件并续积 (关机 / 远地点 /
+    命中). 事件后各物理量自动连续: 关机后推力与质量流失为零.
+
+    异常:
+        TypeError: 参数类型错误.
+        ValueError: 初值或积分参数非法 (含描述信息).
+        RuntimeError: 积分器内部失败.
+    """
+    params = {
+        "r0_m": (r0_m, lambda x: x >= r_target_m, "须 >= r_target_m"),
+        "v0_m_s": (v0_m_s, lambda x: x > 0.0, "须为正数"),
+        "mu": (mu, lambda x: x > 0.0, "须为正数"),
+        "r_target_m": (r_target_m, lambda x: x > 0.0, "须为正数"),
+        "t_max_s": (t_max_s, lambda x: x > 0.0, "须为正数"),
+        "rtol": (rtol, lambda x: x > 0.0, "须为正数"),
+        "atol": (atol, lambda x: x > 0.0, "须为正数"),
+    }
+    for name, (value, ok, why) in params.items():
+        if not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise TypeError(f"{name} 必须为有限数值")
+        if not ok(value):
+            raise ValueError(f"{name}={value!r} {why}")
+    if not isinstance(gamma0_rad, (int, float)) or not math.isfinite(gamma0_rad):
+        raise TypeError("gamma0_rad 必须为有限数值")
+    if gamma0_rad < 0.0 or gamma0_rad > math.pi / 2.0:
+        raise ValueError("gamma0_rad 必须在 [0, pi/2] 内 (含水平与垂直)")
+    if not isinstance(theta0_rad, (int, float)) or not math.isfinite(theta0_rad):
+        raise TypeError("theta0_rad 必须为有限数值")
+    if not isinstance(enable_thrust, bool):
+        raise TypeError("enable_thrust 必须为 bool")
+    if not isinstance(missile, Missile):
+        raise TypeError("missile 必须为 Missile")
+    if not isinstance(atmosphere, AtmosphereUSSA76):
+        raise TypeError("atmosphere 必须为 AtmosphereUSSA76")
+
+    m0 = missile.motor.mass(0.0)
+    y_now = np.array(
+        [
+            float(r0_m),
+            float(theta0_rad),
+            float(v0_m_s),
+            float(gamma0_rad),
+            float(m0),
+        ]
+    )
+    pending: list[EventSpec] = [apogee_event_spec(), impact_event_spec(r_target_m)]
+    if enable_thrust:
+        pending.append(burnout_time_event_spec(missile.motor.burn_rate.burn_time_s))
+    seg_times: list[np.ndarray] = []
+    seg_states: list[np.ndarray] = []
+    events_found: dict[str, EventRecord] = {}
+    t_now = 0.0
+
+    def rhs(t: float, y: np.ndarray) -> np.ndarray:
+        return _powered_rhs(t, y, missile, atmosphere, schedule, mu, enable_thrust)
+
+    while pending and t_now < t_max_s:
+        scipy_events = [_ScipyEvent(spec) for spec in pending]
+        sol = solve_ivp(
+            rhs,
+            (t_now, t_max_s),
+            y_now,
+            events=scipy_events,
+            method="RK45",
+            rtol=rtol,
+            atol=atol,
+        )
+        if not sol.success:
+            raise RuntimeError(f"积分器失败: {sol.message}")
+        seg_t = np.asarray(sol.t)
+        seg_y = np.asarray(sol.y).T
+        if seg_times:
+            seg_times.append(seg_t[1:])
+            seg_states.append(seg_y[1:])
+        else:
+            seg_times.append(seg_t)
+            seg_states.append(seg_y)
+        fired_idx = next(
+            (i for i, te in enumerate(sol.t_events) if te.size > 0), None
+        )
+        if fired_idx is None:
+            break
+        spec = pending[fired_idx]
+        t_ev = float(sol.t_events[fired_idx][0])
+        state_ev = np.asarray(sol.y_events[fired_idx][0], dtype=float)
+        events_found[spec.name] = EventRecord(name=spec.name, time_s=t_ev, state=state_ev)
+        if spec.name == "impact":
+            break
+        pending = [s for i, s in enumerate(pending) if i != fired_idx]
+        t_now = t_ev
+        y_now = state_ev
+
+    if "impact" in events_found:
+        message = "命中目标半径"
+    elif "apogee" in events_found:
+        message = "到达远地点后未命中 (t_max 内)"
+    else:
+        message = "t_max 内无事件触发 (可能逃逸或环绕)"
+    return FlightResult(
+        times=np.concatenate(seg_times),
+        states=np.concatenate(seg_states, axis=0),
+        events=events_found,
+        success="impact" in events_found,
+        message=message,
+    )
+
+
 __all__ = [
     "EventRecord",
     "EventSpec",
     "FlightResult",
     "apogee_event_spec",
+    "burnout_time_event_spec",
     "free_flight_rhs",
     "impact_event_spec",
     "impact_ground_range_m",
     "simulate_free_flight",
+    "simulate_powered_flight",
 ]

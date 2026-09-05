@@ -75,7 +75,7 @@ class AtmosphereUSSA76:
     用法: atmo = AtmosphereUSSA76(); state = atmo.sample(altitude_m).
     """
 
-    def __init__(self, max_altitude_m: float = 500_000.0) -> None:
+    def __init__(self, max_altitude_m: float = 1_000_000.0) -> None:
         """构造模型.
 
         参数:
