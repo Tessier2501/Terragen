@@ -13,7 +13,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Collection, Sequence
 
 from gd_format import (
     GDParseError,
@@ -26,19 +26,13 @@ from gd_format import (
     parse_translations_file,
     read_utf8,
     render_locale_block,
+    resolve_default_gd,
     save_metadata,
     text_sha256,
 )
 
 TOOLS_DIR = Path(__file__).resolve().parent
-# Layout: repo_root/Script/para-translation, so the root is two levels up.
-REPO_ROOT = TOOLS_DIR.parent.parent
-DEFAULT_GD = (
-    REPO_ROOT
-    / "IndustriesOfEnceladusRewriteCN"
-    / "HEVLIB_EQUIPMENT_DRIVER_TAGS"
-    / "REPLACE_TRANSLATIONS.gd"
-)
+DEFAULT_GD = resolve_default_gd(TOOLS_DIR)
 DEFAULT_EXPORT = TOOLS_DIR / "out" / "paratranz_export.json"
 DEFAULT_METADATA = TOOLS_DIR / "metadata.json"
 
@@ -62,6 +56,9 @@ class MergePlan:
     placeholder_keys: list[str]
     deleted_keys: list[str]
     reviewed_count: int
+    stale_reviewed: list[str]
+    still_outdated: list[str]
+    extra_keys: list[str]
 
 
 def load_export_items(path: Path) -> list[ExportItem]:
@@ -100,23 +97,32 @@ def load_export_items(path: Path) -> list[ExportItem]:
     return items
 
 
-def _validate_key_set(parsed: ParsedGD, export_items: list[ExportItem]) -> dict[str, ExportItem]:
-    """Return an export map after checking that its key set equals en."""
+def _validate_key_set(
+    parsed: ParsedGD,
+    export_items: list[ExportItem],
+    allow_extra_keys: bool,
+) -> tuple[dict[str, ExportItem], list[str]]:
+    """Return an export map plus ignored extra keys.
+
+    Missing keys are always fatal.  Extra keys are obsolete keys (for example
+    removed from the source but still present in ParaTranz); they are reported
+    but never take part in rebuilding zh_CN, so they can be ignored safely.
+    """
     en_keys = set(parsed.en.entries)
     export_map = {item.key: item for item in export_items}
     missing = en_keys - set(export_map)
-    extra = set(export_map) - en_keys
-    if missing or extra:
-        details: list[str] = []
-        if missing:
-            details.append(f"missing keys: {sorted(missing)!r}")
-        if extra:
-            details.append(f"unexpected keys: {sorted(extra)!r}")
+    extra = sorted(set(export_map) - en_keys)
+    if missing:
         raise ValueError(
-            "ParaTranz export key set does not match current en key set; "
-            + "; ".join(details)
+            "ParaTranz export is missing current en keys: "
+            f"{sorted(missing)!r}; re-upload paratranz_source.json first"
         )
-    return export_map
+    if extra and not allow_extra_keys:
+        raise ValueError(
+            "ParaTranz export contains unexpected keys: "
+            f"{extra!r}; remove them or drop --strict-key-set"
+        )
+    return export_map, extra
 
 
 def _validate_reviewed_entries(
@@ -148,15 +154,23 @@ def plan_merge(
     parsed: ParsedGD,
     export_items: list[ExportItem],
     review_stage: int = 5,
+    accepted_stale_keys: Collection[str] = (),
+    allow_extra_keys: bool = True,
 ) -> MergePlan:
     """Validate and plan a zh_CN merge without writing files."""
-    export_map = _validate_key_set(parsed, export_items)
+    accepted_stale = set(accepted_stale_keys)
+    export_map, extra_keys = _validate_key_set(
+        parsed,
+        export_items,
+        allow_extra_keys=allow_extra_keys,
+    )
     _validate_reviewed_entries(parsed, export_map, review_stage)
 
     zh_entries = parsed.zh.entries
     entries: list[LocalizedText] = []
     changes: list[dict[str, Any]] = []
     placeholder_keys: list[str] = []
+    stale_reviewed: list[str] = []
     reviewed_count = 0
 
     for key in parsed.en_key_order:
@@ -165,7 +179,22 @@ def plan_merge(
         current = zh_entries.get(key)
         is_reviewed = item.stage >= review_stage
 
-        if is_reviewed:
+        suspicious_same_text = bool(
+            is_reviewed
+            and current is not None
+            and current.version_hash != en_entry.version_hash
+            and item.translation == current.text
+        )
+        if suspicious_same_text:
+            stale_reviewed.append(key)
+
+        # A changed entry whose translation text did not change must not be
+        # silently marked synced.  It is only synced when explicitly accepted.
+        can_sync = is_reviewed and (
+            not suspicious_same_text or key in accepted_stale
+        )
+
+        if can_sync:
             reviewed_count += 1
             new_text = item.translation
             new_hash = en_entry.version_hash
@@ -188,7 +217,7 @@ def plan_merge(
                     "new_text": new_text,
                     "old_hash": None,
                     "new_hash": new_hash,
-                    "reviewed": is_reviewed,
+                    "reviewed": can_sync,
                 }
             )
         else:
@@ -203,19 +232,28 @@ def plan_merge(
                         "new_text": new_text,
                         "old_hash": current.version_hash,
                         "new_hash": new_hash,
-                        "reviewed": is_reviewed,
+                        "reviewed": can_sync,
                     }
                 )
 
         entries.append(LocalizedText(key=key, text=new_text, version_hash=new_hash))
 
     deleted_keys = [key for key in zh_entries if key not in parsed.en.entries]
+    final_by_key = {entry.key: entry for entry in entries}
+    still_outdated = [
+        key
+        for key in parsed.en_key_order
+        if final_by_key[key].version_hash != parsed.en.entries[key].version_hash
+    ]
     return MergePlan(
         entries=entries,
         changes=changes,
         placeholder_keys=placeholder_keys,
         deleted_keys=deleted_keys,
         reviewed_count=reviewed_count,
+        stale_reviewed=stale_reviewed,
+        still_outdated=still_outdated,
+        extra_keys=extra_keys,
     )
 
 
@@ -328,6 +366,27 @@ def print_plan(plan: MergePlan) -> None:
     print(f"changes to write: {len(plan.changes)}")
     print(f"placeholders (en text + hash 0): {len(plan.placeholder_keys)}")
     print(f"deleted zh_CN-only keys: {len(plan.deleted_keys)}")
+    if plan.extra_keys:
+        print(f"ignored extra export keys: {len(plan.extra_keys)}")
+        for key in plan.extra_keys[:20]:
+            print(f"  ? {key}")
+        if len(plan.extra_keys) > 20:
+            print(f"  ... and {len(plan.extra_keys) - 20} more")
+    if plan.stale_reviewed:
+        print(
+            "reviewed entries identical to the current GD translation but "
+            f"with a changed en version_hash: {len(plan.stale_reviewed)}"
+        )
+        for key in plan.stale_reviewed[:20]:
+            print(f"  ! {key} (use --accept-unchanged if intentional)")
+        if len(plan.stale_reviewed) > 20:
+            print(f"  ... and {len(plan.stale_reviewed) - 20} more")
+    if plan.still_outdated:
+        print(f"still out-of-sync after this plan: {len(plan.still_outdated)}")
+        for key in plan.still_outdated[:20]:
+            print(f"  ? {key}")
+        if len(plan.still_outdated) > 20:
+            print(f"  ... and {len(plan.still_outdated) - 20} more")
 
     for change in plan.changes:
         print(
@@ -357,6 +416,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="write the merged GD file; default is check-only",
     )
+    parser.add_argument(
+        "--accept-unchanged",
+        action="append",
+        default=[],
+        metavar="KEY",
+        help=(
+            "explicitly allow a changed reviewed key to keep its existing "
+            "translation text (may be repeated)"
+        ),
+    )
+    parser.add_argument(
+        "--strict-key-set",
+        action="store_true",
+        help="refuse extra export keys instead of ignoring them",
+    )
     return parser
 
 
@@ -366,6 +440,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.review_stage < 0:
         print("error: --review-stage must be >= 0", file=sys.stderr)
         return 2
+    accepted_stale = set(args.accept_unchanged)
+
     try:
         gd_text = read_utf8(args.gd, "GD file")
         parsed = parse_translations_file(gd_text)
@@ -379,18 +455,52 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         _validate_metadata_matches(parsed, metadata, args.gd)
         export_items = load_export_items(args.export)
-        plan = plan_merge(parsed, export_items, review_stage=args.review_stage)
+        plan = plan_merge(
+            parsed,
+            export_items,
+            review_stage=args.review_stage,
+            accepted_stale_keys=accepted_stale,
+            allow_extra_keys=not args.strict_key_set,
+        )
     except (GDParseError, OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    unknown_accepted = accepted_stale - set(plan.stale_reviewed)
+    if unknown_accepted:
+        print(
+            "error: --accept-unchanged key(s) are not currently "
+            f"stale-reviewed: {sorted(unknown_accepted)!r}",
+            file=sys.stderr,
+        )
+        return 2
+
+    blocking_stale = [
+        key for key in plan.stale_reviewed if key not in accepted_stale
+    ]
     print_plan(plan)
+    if blocking_stale:
+        print(
+            "warning: these reviewed entries have the same translation as the "
+            "current GD and will not be marked synced: "
+            f"{blocking_stale!r}",
+            file=sys.stderr,
+        )
+
     if not args.write:
         if plan.changes or plan.deleted_keys:
             print("check-only: no files were written")
         else:
             print("check-only: no changes needed")
         return 0
+
+    if blocking_stale:
+        print(
+            "error: refusing to write while some changed entries are not "
+            "actually re-reviewed; pass --accept-unchanged KEY after review",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         wrote = write_merge(args.gd, args.metadata, plan, parsed, metadata)
@@ -399,8 +509,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     if wrote:
         print("wrote merged GD file and updated metadata")
+        if plan.still_outdated:
+            print(
+                "remaining out-of-sync entries: "
+                f"{len(plan.still_outdated)} (see report above)"
+            )
     else:
-        print("no changes needed; no files were written")
+        if plan.still_outdated:
+            print("no changes needed; no files were written")
+            print(
+                "remaining out-of-sync entries: "
+                f"{len(plan.still_outdated)} (see report above)"
+            )
+        else:
+            print("no changes needed; no files were written")
     return 0
 
 

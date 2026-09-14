@@ -18,6 +18,11 @@ from typing import Any, Literal, Sequence, cast
 
 MARKER = "const TRANSLATIONS = {"
 METADATA_SCHEMA_VERSION = 1
+SOURCE_GD_REL = (
+    Path("IndustriesOfEnceladusRewriteCN")
+    / "HEVLIB_EQUIPMENT_DRIVER_TAGS"
+    / "REPLACE_TRANSLATIONS.gd"
+)
 _NUMBER_RE = re.compile(r"-?\d+")
 _ESCAPE_DECODE = {
     "n": "\n",
@@ -150,6 +155,26 @@ class Metadata:
                 for key, entry in self.entries.items()
             },
         }
+
+
+def resolve_default_gd(tools_dir: Path) -> Path:
+    """Resolve the authoritative GD path for both current and legacy layouts.
+
+    The script has lived in two places historically:
+    - ``<root>/Script/para-translation`` (legacy)
+    - ``<root>/IndustriesOfEnceladusRewriteCN_Script`` (current)
+
+    Return the first candidate that exists, otherwise return the current-layout
+    path so the error message still points at the intended file.
+    """
+    if not isinstance(tools_dir, Path):
+        tools_dir = Path(tools_dir)
+    candidates = (tools_dir.parent, tools_dir.parent.parent)
+    for root in candidates:
+        candidate = root / SOURCE_GD_REL
+        if candidate.is_file():
+            return candidate
+    return candidates[0] / SOURCE_GD_REL
 
 
 def decode_gd_string(escaped: str) -> str:
@@ -457,6 +482,10 @@ def parse_translations_file(text: str) -> ParsedGD:
     if master_node.kind != "string":
         raise GDParseError("'master_locale' must be a string")
     master_locale = master_node.value
+    if master_locale != "en":
+        raise GDParseError(
+            f"expected master_locale 'en', got {master_locale!r}"
+        )
 
     locales: dict[str, LocaleBlock] = {}
     for locale_name, locale_node in root_node.items:
