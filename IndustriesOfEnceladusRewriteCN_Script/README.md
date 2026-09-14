@@ -26,6 +26,16 @@
 
 `paratranz_source.json` 永远是当前全量快照，不是只含 diff。ParaTranz 通过它更新已有 key 的原文；已被删除的 key 会从快照中消失，`removed` 清单只在本地报告中列出。
 
+## Stage 语义（重要）
+
+ParaTranz 的 stage 是平台工作流状态，最终 checked 状态为 5。本地脚本不修改平台 stage，只读取导出 JSON 中的 stage：
+
+- `stage >= --review-stage`（默认 5）的条目才会被 `json_to_gd.py` 视为可写回：写入译文并更新 `version_hash`。
+- `stage < 5` 的 changed 条目会保留旧中文和旧 hash，并出现在 `still out-of-sync after this plan` 中，等后续继续处理。
+- 源文更新后，ParaTranz 如果把 changed 键重置为 0，就按正常“翻译 → 审校 → 5”走；added 键天然是 0。
+- 如果 ParaTranz 更新 source 后没有自动重置 changed 键，请手动把 changed 项重置到 0 再开始翻译。否则它们会停留在旧的 stage 5，而旧译文会被本地 `stale_reviewed` 保护拦下，不能写回（除非人工确认后使用 `--accept-unchanged`）。
+- 对“只需更新 hash、译文确实无需改动”的特殊条目，人工审阅确认后才用 `--accept-unchanged KEY` 放行，允许旧的译文字符串配合新的 en hash 写回。
+
 ## 首次建项目
 
 ```bash
@@ -73,7 +83,8 @@ python3 gd_to_json.py
 4. 在 ParaTranz 中：
    - 用 `out/paratranz_source.json` 执行 Create/Update File；
    - 处理 `added`、`changed`；
-   - **changed 键必须重新翻译/审校并将其 stage 提升到阈值（默认 5）**，不能因为仍是旧 stage 就跳过；
+   - **changed 键应重置到 stage 0（未翻译）后重新翻译/审校，并最终走完流程到达 stage 5（checked/完成）**；added 键本来就是 stage 0；
+   - 不要手工把仍带旧译文的条目直接点成 5。本地脚本只合并 `stage >= 5` 的条目，5 是“已 checked”的合并门槛，不是跳过流程的快捷键；
    - 确认 `removed` 键已从项目删除或废弃；
    - 完成后导出原始数据，保存为 `out/paratranz_export.json`。
 
@@ -124,7 +135,7 @@ python3 gd_to_json.py
 
 - `--check` / `gd_to_json.py`：只计算和打印，不写文件；用于正式运行前预览。
 - `--emit-initial`：更新模式下额外生成初始快照；changed/added 条目会写成空译文，避免旧译文被误导入。
-- `--review-stage N`：`json_to_gd.py` 视为“已审校”的最低 stage，默认 5。
+- `--review-stage N`：本地合并门槛；只有 `stage >= N` 的条目才会写回并更新 hash。默认 5，即 ParaTranz 的 checked/完成状态；不是用来手工跳级的。
 - `--accept-unchanged KEY`：允许原文已变、但译文确实可以保持字符串不变的 key 更新 hash；可重复。
 - `--strict-key-set`：ParaTranz 导出中含当前 en 之外的旧 key 时直接报错；默认只警告并忽略这些旧 key。
 - `--gd/--out-dir/--metadata/--export`：覆盖默认路径；默认路径对当前布局和旧布局都能自动定位。
