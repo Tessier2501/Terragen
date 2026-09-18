@@ -1,0 +1,4 @@
+[15:05:45]  🧠 Glossary gate: deriving a glossary draft from the document...
+💬 DeepSeek: 2408+309 tokens (cache hit 0, miss 2408)
+[15:05:47]  ✅ Glossary draft written to: ../TranslateBooksWithLLMsMod_Script/out/hotshot/source-glossary.draft.json (9 terms from 10 excerpts).
+[15:05:47]  Review and edit the draft (fix targets, delete junk rows), then translate with the reviewed glossary by re-running the same command plus: --glossary ../TranslateBooksWithLLMsMod_Script/out/hotshot/source-glossary.draft.json

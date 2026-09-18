@@ -1,0 +1,115 @@
+TRANSLATION STARTED
+File Type: TEXT
+Languages: English → Chinese
+Model: deepseek-v4-flash
+[15:05:56]  Glossary loaded: 9 terms from /home/tessier/GitHub/Terragen/TranslateBooksWithLLMsMod_Script/out/hotshot/source-glossary.draft.json
+[15:05:56] [WARNING] ⚠️ --auto-glossary ignored: --glossary was provided.
+[15:05:56]  Preparing TXT file for translation
+[15:05:58]  Found 33 translation units
+Input file preserved: data/uploads/cli_df100253/source.txt
+[15:05:58]  Translating unit 1/33 (chunk_0)
+💬 DeepSeek: 1292+343 tokens (cache hit 0, miss 1292)
+[15:06:01]  Unit 1/33 translated successfully
+[15:06:01]  Translating unit 2/33 (chunk_1)
+💬 DeepSeek: 1432+419 tokens (cache hit 640, miss 792)
+[15:06:04]  Unit 2/33 translated successfully
+[15:06:04]  Translating unit 3/33 (chunk_2)
+💬 DeepSeek: 951+60 tokens (cache hit 512, miss 439)
+[15:06:05]  Unit 3/33 translated successfully
+[15:06:05]  Translating unit 4/33 (chunk_3)
+💬 DeepSeek: 1375+330 tokens (cache hit 640, miss 735)
+[15:06:08]  Unit 4/33 translated successfully
+[15:06:08]  Translating unit 5/33 (chunk_4)
+💬 DeepSeek: 945+70 tokens (cache hit 512, miss 433)
+[15:06:09]  Unit 5/33 translated successfully
+[15:06:09]  Translating unit 6/33 (chunk_5)
+💬 DeepSeek: 1387+350 tokens (cache hit 640, miss 747)
+[15:06:12]  Unit 6/33 translated successfully
+[15:06:12]  Translating unit 7/33 (chunk_6)
+💬 DeepSeek: 1099+78 tokens (cache hit 640, miss 459)
+[15:06:13]  Unit 7/33 translated successfully
+[15:06:13]  Translating unit 8/33 (chunk_7)
+💬 DeepSeek: 1326+298 tokens (cache hit 640, miss 686)
+[15:06:15]  Unit 8/33 translated successfully
+[15:06:15]  Translating unit 9/33 (chunk_8)
+💬 DeepSeek: 1388+308 tokens (cache hit 640, miss 748)
+[15:06:18]  Unit 9/33 translated successfully
+[15:06:18]  Translating unit 10/33 (chunk_9)
+💬 DeepSeek: 1472+426 tokens (cache hit 640, miss 832)
+[15:06:21]  Unit 10/33 translated successfully
+[15:06:21]  Translating unit 11/33 (chunk_10)
+💬 DeepSeek: 1119+132 tokens (cache hit 512, miss 607)
+[15:06:22]  Unit 11/33 translated successfully
+[15:06:22]  Translating unit 12/33 (chunk_11)
+💬 DeepSeek: 1445+395 tokens (cache hit 640, miss 805)
+[15:06:25]  Unit 12/33 translated successfully
+[15:06:25]  Translating unit 13/33 (chunk_12)
+💬 DeepSeek: 916+39 tokens (cache hit 512, miss 404)
+[15:06:26]  Unit 13/33 translated successfully
+[15:06:26]  Translating unit 14/33 (chunk_13)
+💬 DeepSeek: 1341+371 tokens (cache hit 640, miss 701)
+[15:06:29]  Unit 14/33 translated successfully
+[15:06:29]  Translating unit 15/33 (chunk_14)
+💬 DeepSeek: 987+113 tokens (cache hit 512, miss 475)
+[15:06:31]  Unit 15/33 translated successfully
+[15:06:31]  Translating unit 16/33 (chunk_15)
+💬 DeepSeek: 1405+345 tokens (cache hit 640, miss 765)
+[15:06:33]  Unit 16/33 translated successfully
+[15:06:33]  Translating unit 17/33 (chunk_16)
+💬 DeepSeek: 1377+318 tokens (cache hit 640, miss 737)
+[15:06:35]  Unit 17/33 translated successfully
+[15:06:35]  Translating unit 18/33 (chunk_17)
+💬 DeepSeek: 1362+307 tokens (cache hit 640, miss 722)
+[15:06:38]  Unit 18/33 translated successfully
+[15:06:38]  Translating unit 19/33 (chunk_18)
+💬 DeepSeek: 1414+364 tokens (cache hit 640, miss 774)
+[15:06:41]  Unit 19/33 translated successfully
+[15:06:41]  Translating unit 20/33 (chunk_19)
+💬 DeepSeek: 1293+411 tokens (cache hit 512, miss 781)
+[15:06:44]  Unit 20/33 translated successfully
+[15:06:44]  Translating unit 21/33 (chunk_20)
+💬 DeepSeek: 934+76 tokens (cache hit 512, miss 422)
+[15:06:45]  Unit 21/33 translated successfully
+[15:06:45]  Translating unit 22/33 (chunk_21)
+💬 DeepSeek: 1262+457 tokens (cache hit 512, miss 750)
+[15:06:49]  Unit 22/33 translated successfully
+[15:06:49]  Translating unit 23/33 (chunk_22)
+💬 DeepSeek: 1428+402 tokens (cache hit 640, miss 788)
+[15:06:52]  Unit 23/33 translated successfully
+[15:06:52]  Translating unit 24/33 (chunk_23)
+💬 DeepSeek: 932+65 tokens (cache hit 512, miss 420)
+[15:06:53]  Unit 24/33 translated successfully
+[15:06:53]  Translating unit 25/33 (chunk_24)
+💬 DeepSeek: 1210+381 tokens (cache hit 512, miss 698)
+[15:06:55]  Unit 25/33 translated successfully
+[15:06:55]  Translating unit 26/33 (chunk_25)
+💬 DeepSeek: 946+58 tokens (cache hit 512, miss 434)
+[15:06:56]  Unit 26/33 translated successfully
+[15:06:56]  Translating unit 27/33 (chunk_26)
+💬 DeepSeek: 1232+396 tokens (cache hit 512, miss 720)
+[15:06:59]  Unit 27/33 translated successfully
+[15:06:59]  Translating unit 28/33 (chunk_27)
+💬 DeepSeek: 1466+368 tokens (cache hit 640, miss 826)
+[15:07:02]  Unit 28/33 translated successfully
+[15:07:02]  Translating unit 29/33 (chunk_28)
+💬 DeepSeek: 977+111 tokens (cache hit 512, miss 465)
+[15:07:03]  Unit 29/33 translated successfully
+[15:07:03]  Translating unit 30/33 (chunk_29)
+💬 DeepSeek: 1473+395 tokens (cache hit 640, miss 833)
+[15:07:06]  Unit 30/33 translated successfully
+[15:07:06]  Translating unit 31/33 (chunk_30)
+💬 DeepSeek: 1455+351 tokens (cache hit 640, miss 815)
+[15:07:09]  Unit 31/33 translated successfully
+[15:07:09]  Translating unit 32/33 (chunk_31)
+💬 DeepSeek: 938+67 tokens (cache hit 512, miss 426)
+[15:07:10]  Unit 32/33 translated successfully
+[15:07:10]  Translating unit 33/33 (chunk_32)
+💬 DeepSeek: 1393+372 tokens (cache hit 640, miss 753)
+[15:07:13]  Unit 33/33 translated successfully
+[15:07:13]  Reconstructing output file
+[15:07:13]  Output file written to /home/tessier/GitHub/Terragen/TranslateBooksWithLLMsMod_Script/out/hotshot/translated_zh.txt
+[15:07:13]  Translation completed successfully: 33 units
+
+TRANSLATION COMPLETE
+Duration: 0:01:16.257316
+Output saved to: /home/tessier/GitHub/Terragen/TranslateBooksWithLLMsMod_Script/out/hotshot/translated_zh.txt

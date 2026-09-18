@@ -1,5 +1,5 @@
 {
-  "_doc": "单书 glossary 工作模板。与 TranslateBooksWithLLMs --glossary 兼容(其加载器只读取 source/target/category/gender, 其余字段忽略); 同一文件可直接被 Script/qa/qa_checks.py 消费。lock_level=confirmed 的条目会被 QA 强制检查。",
+  "_doc": "单书 glossary 工作模板. 与 TranslateBooksWithLLMs --glossary 兼容 (加载器只读取 source/target/category/gender, 其余字段忽略). lock_level=confirmed 的条目在系列库合并和导出时优先处理.",
   "version": 2,
   "book": {
     "title": "",

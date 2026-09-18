@@ -1,0 +1,58 @@
+{
+  "terms": [
+    {
+      "source": "Chito",
+      "target": "奇托",
+      "category": "character",
+      "gender": "male"
+    },
+    {
+      "source": "Jupiter",
+      "target": "木星",
+      "category": "location",
+      "gender": ""
+    },
+    {
+      "source": "Kai",
+      "target": "凯",
+      "category": "character",
+      "gender": "male"
+    },
+    {
+      "source": "Mamoro",
+      "target": "真守",
+      "category": "character",
+      "gender": "male"
+    },
+    {
+      "source": "Mars",
+      "target": "火星",
+      "category": "location",
+      "gender": ""
+    },
+    {
+      "source": "Mercury",
+      "target": "水星",
+      "category": "location",
+      "gender": ""
+    },
+    {
+      "source": "Peter Watts",
+      "target": "彼得·沃茨",
+      "category": "character",
+      "gender": ""
+    },
+    {
+      "source": "Sawada",
+      "target": "泽田",
+      "category": "character",
+      "gender": "male"
+    },
+    {
+      "source": "Sunday",
+      "target": "桑迪",
+      "category": "character",
+      "gender": ""
+    }
+  ]
+}
