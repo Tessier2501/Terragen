@@ -1,8 +1,7 @@
-"""Shared GDScript translation dictionary parsing and rendering.
+"""Parse and render the GDScript translation dictionary.
 
-The module intentionally parses only the dictionary literal assigned to
-``const TRANSLATIONS``.  It is not a general GDScript parser.
-"""
+The parser handles the dictionary literal assigned to ``const TRANSLATIONS``
+inside ``REPLACE_TRANSLATIONS.gd``."""
 
 from __future__ import annotations
 
@@ -34,11 +33,11 @@ _ESCAPE_DECODE = {
 
 
 class GDParseError(ValueError):
-    """Raised when the GDScript translation dictionary cannot be parsed safely."""
+    """Raised for GDScript translation dictionary parse errors."""
 
 
 class MetadataError(ValueError):
-    """Raised when metadata.json is missing required data or is malformed."""
+    """Raised for metadata.json validation errors."""
 
 
 TokenKind = Literal["string", "integer", "{", "}", ":", ","]
@@ -79,7 +78,7 @@ class Entry:
 
 @dataclass(frozen=True)
 class LocaleBlock:
-    """A locale block and the character span it occupies in the source text."""
+    """A locale block and its character span in the source text."""
 
     name: str
     start: int
@@ -113,7 +112,7 @@ class ParsedGD:
 
 @dataclass(frozen=True)
 class LocalizedText:
-    """An entry ready to be rendered into a locale block."""
+    """An entry ready for rendering into a locale block."""
 
     key: str
     text: str
@@ -122,7 +121,7 @@ class LocalizedText:
 
 @dataclass(frozen=True)
 class MetadataEntry:
-    """Per-key local metadata."""
+    """Local metadata for one translation key."""
 
     en_text_sha256: str
     en_version_hash: int
@@ -132,7 +131,7 @@ class MetadataEntry:
 
 @dataclass
 class Metadata:
-    """Local metadata file content."""
+    """The metadata.json content."""
 
     schema_version: int
     source_sha256: str
@@ -158,14 +157,11 @@ class Metadata:
 
 
 def resolve_default_gd(tools_dir: Path) -> Path:
-    """Resolve the authoritative GD path for both current and legacy layouts.
+    """Return the authoritative GD path for the current project layout.
 
-    The script has lived in two places historically:
-    - ``<root>/Script/para-translation`` (legacy)
-    - ``<root>/IndustriesOfEnceladusRewriteCN_Script`` (current)
-
-    Return the first candidate that exists, otherwise return the current-layout
-    path so the error message still points at the intended file.
+    The resolver checks the current and legacy script layouts and returns the
+    first matching path. For a fresh project it returns the current-layout
+    candidate.
     """
     if not isinstance(tools_dir, Path):
         tools_dir = Path(tools_dir)
@@ -178,10 +174,10 @@ def resolve_default_gd(tools_dir: Path) -> Path:
 
 
 def decode_gd_string(escaped: str) -> str:
-    """Decode GDScript string escape sequences into human-readable text.
+    """Decode GDScript string escapes into readable text.
 
-    Only the escape sequences used by the target file are accepted.  Unknown
-    escapes raise ``GDParseError`` instead of being silently passed through.
+    The decoder accepts the escape sequences used by the target file and raises
+    ``GDParseError`` for other sequences.
     """
     if not isinstance(escaped, str):
         raise TypeError("escaped must be str")
@@ -233,7 +229,7 @@ def encode_gd_string(text: str) -> str:
 
 
 def _tokenize(text: str, start: int) -> list[Token]:
-    """Tokenize the dictionary literal beginning at ``start``."""
+    """Tokenize the dictionary literal that begins at ``start``."""
     tokens: list[Token] = []
     index = start
     length = len(text)
@@ -509,7 +505,7 @@ def parse_translations_file(text: str) -> ParsedGD:
 
 
 def render_locale_block(locale_name: str, entries: Sequence[LocalizedText]) -> str:
-    """Render one locale block exactly in the target file's indentation style."""
+    """Render one locale block in the target file indentation style."""
     if not locale_name:
         raise ValueError("locale_name must not be empty")
     lines: list[str] = [f'"{locale_name}": {{']
@@ -536,7 +532,7 @@ def text_sha256(text: str) -> str:
 
 
 def read_utf8(path: Path, description: str) -> str:
-    """Read a UTF-8 file with explicit boundary validation."""
+    """Read a UTF-8 file and validate its encoding boundaries."""
     if not isinstance(path, Path):
         path = Path(path)
     try:
@@ -553,7 +549,7 @@ def read_utf8(path: Path, description: str) -> str:
 
 
 def atomic_write_text(path: Path, text: str) -> None:
-    """Write ``text`` to ``path`` atomically, preserving the existing mode."""
+    """Write ``text`` to ``path`` atomically while preserving the existing mode."""
     if not isinstance(path, Path):
         path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -586,7 +582,7 @@ def atomic_write_text(path: Path, text: str) -> None:
 
 
 def load_metadata(path: Path) -> Metadata | None:
-    """Load metadata.json, returning None only when the file does not exist."""
+    """Load metadata.json into a Metadata object; return None for a fresh project."""
     if not path.exists():
         return None
     raw = read_utf8(path, "metadata file")

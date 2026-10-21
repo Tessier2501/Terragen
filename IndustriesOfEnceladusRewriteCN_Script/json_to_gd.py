@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Merge reviewed ParaTranz zh_CN translations back into the GD file.
+"""Merge reviewed ParaTranz zh_CN translations into the authoritative GD file.
 
-Input JSON must be the ParaTranz "Download Raw Data" array:
+The input uses the ParaTranz "Download Raw Data" array format:
 [{"key": "...", "original": "...", "translation": "...", "stage": 5}]
 """
 
@@ -33,7 +33,7 @@ from gd_format import (
 
 TOOLS_DIR = Path(__file__).resolve().parent
 DEFAULT_GD = resolve_default_gd(TOOLS_DIR)
-DEFAULT_EXPORT = TOOLS_DIR / "out" / "paratranz_export.json"
+DEFAULT_EXPORT = TOOLS_DIR / "paratranz_export.json"
 DEFAULT_METADATA = TOOLS_DIR / "metadata.json"
 
 
@@ -102,11 +102,10 @@ def _validate_key_set(
     export_items: list[ExportItem],
     allow_extra_keys: bool,
 ) -> tuple[dict[str, ExportItem], list[str]]:
-    """Return an export map plus ignored extra keys.
+    """Validate export keys and return the export map plus historical keys.
 
-    Missing keys are always fatal.  Extra keys are obsolete keys (for example
-    removed from the source but still present in ParaTranz); they are reported
-    but never take part in rebuilding zh_CN, so they can be ignored safely.
+    The exporter supplies every current en key. Historical export keys are
+    reported separately and stay outside the zh_CN rebuild.
     """
     en_keys = set(parsed.en.entries)
     export_map = {item.key: item for item in export_items}
@@ -130,7 +129,7 @@ def _validate_reviewed_entries(
     export_map: dict[str, ExportItem],
     review_stage: int,
 ) -> None:
-    """Reject reviewed entries whose translation or original text is invalid."""
+    """Validate reviewed entries and report translation or original-text errors."""
     errors: list[str] = []
     for key in parsed.en_key_order:
         item = export_map[key]
@@ -157,7 +156,7 @@ def plan_merge(
     accepted_stale_keys: Collection[str] = (),
     allow_extra_keys: bool = True,
 ) -> MergePlan:
-    """Validate and plan a zh_CN merge without writing files."""
+    """Validate the export and build a zh_CN merge plan for preview."""
     accepted_stale = set(accepted_stale_keys)
     export_map, extra_keys = _validate_key_set(
         parsed,
@@ -188,8 +187,8 @@ def plan_merge(
         if suspicious_same_text:
             stale_reviewed.append(key)
 
-        # A changed entry whose translation text did not change must not be
-        # silently marked synced.  It is only synced when explicitly accepted.
+        # Changed reviewed entries with identical translation text require
+        # explicit acceptance before the merge marks them synced.
         can_sync = is_reviewed and (
             not suspicious_same_text or key in accepted_stale
         )
@@ -258,7 +257,7 @@ def plan_merge(
 
 
 def render_merged_text(parsed: ParsedGD, plan: MergePlan) -> str:
-    """Return the full GD text with only the zh_CN block replaced."""
+    """Return the full GD text with the zh_CN block replaced."""
     block = render_locale_block("zh_CN", plan.entries)
     return parsed.text[: parsed.zh.start] + block + parsed.text[parsed.zh.end :]
 
@@ -293,7 +292,7 @@ def _updated_metadata(
 
 
 def _validate_metadata_matches(parsed: ParsedGD, metadata: Metadata, gd_path: Path) -> None:
-    """Ensure metadata was generated from the current GD and key set."""
+    """Verify that metadata matches the current GD hash and key set."""
     current_sha = file_sha256(gd_path)
     if metadata.source_sha256 != current_sha:
         raise ValueError(
@@ -316,7 +315,7 @@ def write_merge(
 ) -> bool:
     """Atomically write the merged GD file and update metadata.
 
-    Returns True when the GD file was changed and written.
+    Returns True after writing a changed GD file.
     """
     if not plan.changes and not plan.deleted_keys:
         return False
@@ -414,7 +413,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--write",
         action="store_true",
-        help="write the merged GD file; default is check-only",
+        help="write the merged GD file (default: preview)",
     )
     parser.add_argument(
         "--accept-unchanged",
@@ -429,7 +428,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strict-key-set",
         action="store_true",
-        help="refuse extra export keys instead of ignoring them",
+        help="treat extra export keys as errors",
     )
     return parser
 

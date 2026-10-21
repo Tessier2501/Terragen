@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """Export en/zh_CN text from the authoritative GD file to ParaTranz JSON.
 
-Generated files:
-- out/paratranz_source.json: full current key + original snapshot, for
-  ParaTranz Create/Update File.
-- out/paratranz_initial_translation.json: key + original + translation, for
-  first-time Import Translation.  On update runs this file is left untouched
-  unless --emit-initial is given; changed/added keys are then emitted blank.
-- out/paratranz_changes.json: local report with added/changed/removed plus
-  untranslated/stale keys.
+Generated files live in the project root:
+- paratranz_source.json: full current key and original snapshot for ParaTranz
+  Create/Update File.
+- paratranz_initial_translation.json: initial translation snapshot for Import
+  Translation. Update runs write this file with --emit-initial and use empty
+  translations for changed and added keys.
+- paratranz_changes.json: local report for added, changed, removed,
+  untranslated, and stale keys.
 - metadata.json: local source hash and per-key state.
-- out/archive/<old_source_sha256>/: previous exports and metadata, written
-  automatically before the baseline advances.
+- archive/<old_source_sha256>/: previous exports and metadata, archived
+  before the baseline advances.
 
-``--check`` computes and prints the same summary without writing any file.
+``--check`` computes and prints the summary and keeps the workspace
+unchanged.
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ from gd_format import (
 
 TOOLS_DIR = Path(__file__).resolve().parent
 DEFAULT_GD = resolve_default_gd(TOOLS_DIR)
-DEFAULT_OUT_DIR = TOOLS_DIR / "out"
+DEFAULT_OUT_DIR = TOOLS_DIR
 DEFAULT_METADATA = TOOLS_DIR / "metadata.json"
 
 
@@ -84,7 +85,7 @@ def _build_metadata(
     source_sha256: str,
     previous: Metadata | None,
 ) -> Metadata:
-    """Build fresh metadata while carrying placeholder flags forward."""
+    """Build fresh metadata and carry placeholder flags forward."""
     entries: dict[str, MetadataEntry] = {}
     zh_entries = parsed.zh.entries
 
@@ -94,7 +95,7 @@ def _build_metadata(
             en_text_sha256=text_sha256(en_entry.text),
             en_version_hash=en_entry.version_hash,
             zh_version_hash=zh_entry.version_hash if zh_entry is not None else None,
-            # version_hash == 0 is the placeholder marker used by the game.
+            # version_hash == 0 marks a placeholder entry for the game.
             zh_placeholder=bool(zh_entry is not None and zh_entry.version_hash == 0),
         )
     return Metadata(
@@ -173,7 +174,7 @@ def _changes_payload(
         "generated_at": _utc_now(),
         "source_sha256_before": previous.source_sha256 if previous is not None else None,
         "source_sha256_after": source_sha256,
-        # Kept for compatibility with the earlier report schema.
+        # Retain this field for compatibility with the earlier report schema.
         "source_sha256": source_sha256,
         "en_count": len(en_order),
         "zh_count": len(zh_entries),
@@ -193,7 +194,7 @@ def _archive_previous_outputs(
     metadata_path: Path,
     previous: Metadata,
 ) -> Path:
-    """Copy the previous metadata/exports into an archive keyed by source hash."""
+    """Archive the previous metadata and exports under the source hash."""
     archive_dir = out_dir / "archive" / previous.source_sha256
     archive_dir.mkdir(parents=True, exist_ok=True)
     candidates = (
@@ -219,11 +220,10 @@ def generate(
     write: bool = True,
     emit_initial: bool = False,
 ) -> dict[str, Any]:
-    """Generate all ParaTranz JSON files and metadata for one GD file.
+    """Generate the ParaTranz JSON files and metadata for one GD file.
 
-    When ``write`` is False no file is written, making this safe to use as a
-    dry run.  ``emit_initial`` is only needed when an updated initial
-    translation snapshot is explicitly wanted.
+    ``write=False`` produces a read-only preview. Set ``emit_initial`` to
+    request an updated initial translation snapshot.
     """
     gd_text = read_utf8(gd_path, "GD file")
     parsed = parse_translations_file(gd_text)
@@ -240,8 +240,8 @@ def generate(
     emit_initial_file = first_run or emit_initial
     translation_items: list[dict[str, str]] = []
     if emit_initial_file:
-        # On update runs, do not re-import old translations for changed/added
-        # keys.  They must be translated/reviewed again.
+        # Update runs use empty translations for changed and added keys so
+        # every entry starts a fresh review cycle.
         blank_keys = (
             set(changes["added"]) | set(changes["changed"])
             if not first_run
@@ -306,7 +306,7 @@ def generate(
 
 
 def _print_summary(summary: dict[str, Any]) -> None:
-    """Print a concise summary of the generated files."""
+    """Print a summary of the generated files."""
     changes = summary["changes"]
     print(f"GD file: {summary['gd_path']}")
     print(f"en entries: {summary['en_count']}")
@@ -361,14 +361,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="compute and print everything, but write no files",
+        help="compute and print the summary for a preview",
     )
     parser.add_argument(
         "--emit-initial",
         action="store_true",
         help=(
-            "also write an initial translation snapshot on update runs; "
-            "changed/added entries are emitted with an empty translation"
+            "write an initial translation snapshot on update runs; "
+            "changed and added entries use empty translations"
         ),
     )
     return parser
